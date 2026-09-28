@@ -198,18 +198,15 @@ export default function App() {
         {verification && <pre className="mt-3 whitespace-pre-wrap font-mono text-[10px]">{verification}</pre>}
       </section>}
 
-      {tab === "export" && <section className="nr-card p-4">
-        <p className="mb-3 text-xs text-stone-600">Modular TypeScript starter with a working local demo, editable squad configuration, and adapter interfaces for your own model and browser services. No API key is bundled.</p>
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <select aria-label="Exported file" value={exportFile} onChange={event => setExportFile(event.target.value)}
-            className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs">
-            {Object.keys(files).map(file => <option key={file} value={file}>{file}</option>)}
-          </select>
-          <button type="button" disabled={busy} onClick={() => void downloadStarter()}
-            className="rounded-full bg-ink px-4 py-2 text-xs font-semibold text-canvas disabled:opacity-40">Download workflow ZIP</button>
-          <button type="button" disabled={busy} onClick={() => void download()} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-semibold disabled:opacity-40">{busy ? "Packaging…" : "Download full source ZIP"}</button>
+      {tab === "export" && <section>
+        <div className="nr-kit-box">
+          <div className="nr-kit-lid"><span>✦ N/R · BUILD YOUR OWN SERIES</span><span>STARTER KIT / 001</span></div>
+          <div className="grid gap-6 p-5 sm:p-8 lg:grid-cols-[1.15fr_1fr] lg:items-center">
+            <div><p className="nr-eyebrow">Ready for the workbench</p><h2 className="nr-display text-4xl sm:text-5xl">Package your squad.</h2><p className="mt-3 max-w-lg text-sm leading-relaxed text-stone-600">Your four edited Minds and {customChallenge ? `“${customChallenge.name}”` : "the starter price maze"} are packed into a modular TypeScript runner. Open the box, try the local demo, and bring your own browser and model adapters when you are ready.</p><div className="mt-5 flex flex-wrap gap-2"><button type="button" disabled={busy} onClick={() => void downloadStarter()} className="rounded-full bg-ink px-6 py-3 text-xs font-bold text-white disabled:opacity-40">{busy ? "Packing…" : "Unbox starter kit (.ZIP) ↗"}</button><button type="button" disabled={busy} onClick={() => void download()} className="rounded-full border border-stone-400 bg-white px-5 py-3 text-xs font-bold disabled:opacity-40">Full source ZIP</button></div><p className="mt-3 text-[11px] text-stone-500">Includes a runnable fixture and adapter interfaces. No live credentials or provider calls are bundled.</p>{note && <p className="mt-2 text-xs font-semibold text-emerald-800" role="status">{note}</p>}</div>
+            <div className="nr-kit-tray"><span className="nr-kit-tray-label">INSIDE THE BOX · FOUR SPECIALISTS</span><div className="grid grid-cols-2 gap-2">{dag.nodes.map((node, index) => <div key={node.id} className="nr-kit-mini"><span>0{index + 1}</span><strong>{node.mind}</strong><small>{node.title}</small></div>)}</div><div className="nr-kit-ticket">✦ MISSION CARD <strong>{customChallenge?.name ?? "Price maze"}</strong></div></div>
+          </div>
         </div>
-        <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-2xl bg-sand p-3 font-mono text-[10px]">{files[exportFile]}</pre>
+        <div className="nr-card mt-5 p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><h3 className="nr-display text-xl">Peek inside the kit</h3><p className="text-[11px] text-stone-500">Select a file to inspect the code before download.</p></div><select aria-label="Exported file" value={exportFile} onChange={event => setExportFile(event.target.value)} className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs">{Object.keys(files).map(file => <option key={file} value={file}>{file}</option>)}</select></div><pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-2xl bg-[#25221e] p-4 font-mono text-[10px] text-stone-100">{files[exportFile]}</pre></div>
       </section>}
     </div>
   );

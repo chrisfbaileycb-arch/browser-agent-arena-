@@ -17,10 +17,10 @@ The Export view's **Download full source ZIP** button packages the source, tests
 
 ## What is implemented
 
-- An original illustrated squad, large arena entry point, four designed duels, and eight research scenes form the visual world. The arena provides pause, step, replay, winner state, and a trace. The browser pages and agent behavior are simulations, not live DOM or model sessions.
+- An original illustrated squad appears as collectible cards with peg slots, clear figure bubbles, and conceptual accessory wells. The warm play-set arena has four designed duels and eight research scenes. Visitors can inspect selectors, pause, step, replay, follow the handoff track, and read the trace. Browser pages and agent behavior are simulations, not live DOM or model sessions.
 - **Challenge Studio** lets visitors edit page elements and selectors, mark decoys, arrange each lane's route, author a JSON extraction fixture, and set existence/equality success assertions. Invalid routes and data are rejected before launch. The draft is kept in the visitor's browser storage.
 - **Squad Studio** offers eight objectives mapped to four specialist stages. Visitors edit each mind's name, prompt, score floor, and pruning budget, then run a local fixture simulation.
-- The export view packages the current squad and most recently launched custom mission into a modular TypeScript starter with browser, mind, and gate interfaces. Its runnable demo adapter uses fixture data. There are no bundled API keys or provider calls.
+- The "Package your squad" view presents the current squad and most recently launched custom mission as a TypeScript starter kit with browser, mind, and gate interfaces. Its runnable demo adapter uses fixture data. There are no bundled API keys or provider calls.
 - A fixture corpus drives simulated research, token pruning, and simple field extraction. The in-studio REST stage creates a simulated `201` result in memory.
 - The ten-trial harness produces simulated monolith and relay records for four enterprise scenarios. Its modeled failure times and dollar values are illustrative constants in code, not measured performance, current provider pricing, or billing.
 - The ZIP button packages the repository's text files as of the last `dev` or `build` start.

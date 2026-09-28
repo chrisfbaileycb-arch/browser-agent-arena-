@@ -6,7 +6,7 @@ function LaneView({ ch, lane, rt }: { ch: ArenaChallenge; lane: "A" | "B"; rt: L
     <div className="nr-card overflow-hidden p-0">
       <div className="flex items-center justify-between px-3 pt-3">
         <strong className="text-xs">{lane === "A" ? "Lane A · Solo monolithic" : "Lane B · Minds relay squad"}</strong>
-        <span className={"rounded-full px-3 py-1 text-[10px] font-semibold " + (rt.crashed ? "bg-red-100 text-red-800" : lane === "B" ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800")}>{rt.lastBadge}</span>
+        <span className={"rounded-full px-3 py-1 text-[10px] font-semibold " + (rt.crashed || rt.failed ? "bg-red-100 text-red-800" : rt.settled ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800")}>{rt.lastBadge}</span>
       </div>
       <div className="p-2.5">
         <div className="flex items-center gap-1.5 rounded-t-2xl bg-stone-100 px-2 py-2">
@@ -27,17 +27,31 @@ function LaneView({ ch, lane, rt }: { ch: ArenaChallenge; lane: "A" | "B"; rt: L
     </div>
   );
 }
-export default function ArenaViewport({ challengeId = "ecom", playing = true }: { challengeId?: string; playing?: boolean }) {
-  const ch = useMemo(() => getArenaChallenge(challengeId), [challengeId]);
+export default function ArenaViewport({ challengeId = "ecom", challenge, playing = true }: { challengeId?: string; challenge?: ArenaChallenge; playing?: boolean }) {
+  const builtIn = useMemo(() => getArenaChallenge(challengeId), [challengeId]);
+  const ch = challenge ?? builtIn;
   const [duel, setDuel] = useState<DuelState>(() => createDuel(ch));
   useEffect(() => { setDuel(createDuel(ch)); }, [ch]);
   useEffect(() => { if (!playing) return; const t = window.setInterval(() => setDuel(d => tickDuel(d, ch)), 520); return () => window.clearInterval(t); }, [playing, ch]);
   return (
     <div>
-      <div className="mb-2 text-[11px] text-stone-500">Browser agent arena · {ch.name}</div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div><strong className="nr-display text-lg">{ch.name}</strong><p className="text-[11px] text-stone-500">{ch.blurb} · simulated browser duel</p></div>
+        <div className="flex items-center gap-2">
+          <span role="status" className="rounded-full bg-sand px-3 py-1.5 text-[11px] font-semibold">{duel.winner === "A" ? "Solo wins" : duel.winner === "B" ? "Relay wins" : duel.winner === "draw" ? "Both routes failed" : `Round ${duel.step + 1}`}</span>
+          <button type="button" onClick={() => setDuel(d => tickDuel(d, ch))} className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-semibold">Step</button>
+          <button type="button" onClick={() => setDuel(createDuel(ch))} className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-semibold">Replay</button>
+        </div>
+      </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <LaneView ch={ch} lane="A" rt={duel.laneA} />
         <LaneView ch={ch} lane="B" rt={duel.laneB} />
+      </div>
+      <div className="nr-card mt-3 p-3">
+        <div className="mb-2 flex items-center justify-between"><strong className="text-xs">Duel trace</strong><span className="text-[10px] text-stone-500">Illustrative rules, no live model calls</span></div>
+        <ol className="grid max-h-40 gap-1 overflow-y-auto text-[11px] md:grid-cols-2">
+          {[...duel.laneA.events, ...duel.laneB.events].sort((a, b) => a.step - b.step || a.lane.localeCompare(b.lane)).map((event, index) => <li key={`${event.lane}-${index}`} className="rounded-lg bg-sand px-2 py-1"><b>{event.lane} · {event.kind}</b> <span className="text-stone-500">{event.selector} · {event.message}</span></li>)}
+        </ol>
       </div>
     </div>
   );

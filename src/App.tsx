@@ -1,24 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import MindGrid from "./components/MindGrid";
 import ArenaViewport from "./components/ArenaViewport";
+import ChallengeStudio from "./components/ChallengeStudio";
 import BrowserSimulationViewport from "./components/BrowserSimulationViewport";
 import PipelineCanvas from "./components/PipelineCanvas";
 import NodeEditor, { type NodePatch } from "./components/NodeEditor";
 import { runVessel, synthesize } from "./core/synthesizer";
 import { runEvalHarness, verifyAllWorkflows, type HarnessReport } from "./core/evalHarness";
-import { ARENA_CHALLENGES } from "./data/arenaChallenges";
+import { ARENA_CHALLENGES, type ArenaChallenge } from "./data/arenaChallenges";
 import { EXTENDED_CHALLENGES } from "./data/extendedChallenges";
 import { PRESETS } from "./data/presets";
-import { downloadCompleteWorkspace, downloadFiles } from "./services/zipPackager";
 import { exportBundle } from "./services/vesselExporter";
 import type { MindId, WorkflowDag } from "./types";
 
-type Tab = "arena" | "browser" | "studio" | "bench" | "export";
+type Tab = "arena" | "challenge" | "browser" | "studio" | "bench" | "export";
 const MIND_IDS: MindId[] = ["scout", "extractor", "gatekeeper", "settlement"];
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("arena");
   const [arenaId, setArenaId] = useState(ARENA_CHALLENGES[0].id);
+  const [customChallenge, setCustomChallenge] = useState<ArenaChallenge | null>(null);
   const [browserId, setBrowserId] = useState(PRESETS[0].id);
   const [benchId, setBenchId] = useState(EXTENDED_CHALLENGES[0].id);
   const [playing, setPlaying] = useState(true);
@@ -33,8 +34,9 @@ export default function App() {
   const [verification, setVerification] = useState("");
   const [runLog, setRunLog] = useState("");
   const [exportFile, setExportFile] = useState("runner.ts");
-  const files = useMemo(() => exportBundle(dag), [dag]);
+  const files = useMemo(() => exportBundle(dag, customChallenge), [dag, customChallenge]);
   const selectedNode = dag.nodes.find(node => node.id === selectedId) ?? dag.nodes[0];
+  const openView = (view: Tab) => { setTab(view); window.setTimeout(() => document.getElementById("studio-views")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0); };
 
   useEffect(() => {
     if (!playing) { setActiveMind(null); return; }
@@ -86,7 +88,13 @@ export default function App() {
   const download = async () => {
     setBusy(true);
     setNote("Packaging workspace…");
-    try { await downloadCompleteWorkspace(); setNote("Workspace ZIP downloaded."); }
+    try { const { downloadCompleteWorkspace } = await import("./services/zipPackager"); await downloadCompleteWorkspace(); setNote("Workspace ZIP downloaded."); }
+    catch (error) { setNote(error instanceof Error ? error.message : "Download failed"); }
+    finally { setBusy(false); }
+  };
+  const downloadStarter = async () => {
+    setBusy(true);
+    try { const { downloadFiles } = await import("./services/zipPackager"); await downloadFiles(files, "nexusrelay-agent-starter.zip"); setNote("Agent starter ZIP downloaded."); }
     catch (error) { setNote(error instanceof Error ? error.message : "Download failed"); }
     finally { setBusy(false); }
   };
@@ -102,25 +110,25 @@ export default function App() {
   };
 
   return (
-    <div className="mx-auto min-h-screen max-w-6xl bg-canvas px-4 py-8">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="nr-display text-3xl text-ink">NexusRelay simulation studio</h1>
-          <p className="mt-1 text-[11px] text-stone-500">Fixture-based demo · no live provider or webhook calls</p>
-        </div>
-        <button type="button" disabled={busy} onClick={() => void download()}
-          className="rounded-full bg-ink px-5 py-2.5 text-xs font-semibold text-canvas shadow-luxury disabled:opacity-40">
-          {busy ? "Working…" : "Download Complete Workspace (.ZIP)"}
-        </button>
+    <div className="mx-auto min-h-screen max-w-7xl px-4 pb-12 pt-4 sm:px-6">
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-3 py-2">
+        <div className="flex items-center gap-3"><span aria-hidden="true" className="grid h-10 w-10 place-items-center rounded-2xl bg-ink text-xl text-white">✦</span><div><h1 className="nr-display text-xl leading-tight text-ink">NexusRelay</h1><p className="text-[10px] font-semibold uppercase tracking-[.22em] text-amber-700">Agent playground</p></div></div>
+        <button type="button" onClick={() => openView("challenge")} className="rounded-full bg-ink px-5 py-2.5 text-xs font-bold text-white shadow-luxury">Build a challenge ↗</button>
       </header>
       {note && <p className="mb-4 text-xs text-stone-600" role="status">{note}</p>}
-      <MindGrid activeMind={activeMind} />
-      <div className="my-4 flex flex-wrap items-center justify-between gap-2">
+      <section className="nr-hero relative mb-7 overflow-hidden rounded-[36px] px-6 py-9 text-white sm:px-10 sm:py-12 lg:min-h-[360px] lg:px-14">
+        <div aria-hidden="true" className="nr-hero-orbit nr-hero-orbit-one" /><div aria-hidden="true" className="nr-hero-orbit nr-hero-orbit-two" />
+        <div className="relative z-10 max-w-2xl"><p className="mb-3 text-[11px] font-bold uppercase tracking-[.3em] text-amber-300">Enter the browser agent arena</p><h2 className="nr-display text-4xl leading-[1.05] sm:text-5xl lg:text-6xl">Small mission.<br /><em className="not-italic text-[#FFB65C]">Big minds.</em><br />Your rules.</h2><p className="mt-5 max-w-lg text-sm leading-relaxed text-stone-200">Build a browser challenge, plant a decoy, and watch a solo agent race a relay of specialists. Then tune the squad and take the runner home.</p><div className="mt-6 flex flex-wrap gap-2"><button type="button" onClick={() => openView("arena")} className="rounded-full bg-[#FF9B31] px-6 py-3 text-xs font-bold text-ink transition-transform hover:scale-105">Watch a duel →</button><button type="button" onClick={() => openView("challenge")} className="rounded-full border border-white/40 px-6 py-3 text-xs font-bold text-white hover:bg-white/10">Design a mission</button></div></div>
+        <div aria-hidden="true" className="nr-hero-glyph hidden lg:flex"><span>SCOUT</span><b>01</b><span>EXTRACT</span><b>02</b><span>GATE</span><b>03</b><span>DELIVER</span></div>
+        <div className="relative z-10 mt-8 flex flex-wrap gap-5 border-t border-white/20 pt-4 text-[10px] font-semibold uppercase tracking-widest text-stone-300"><span>04 specialist minds</span><span>02 rival architectures</span><span>∞ possible missions</span></div>
+      </section>
+      <MindGrid activeMind={activeMind} onSelect={mind => { setSelectedId(mind === "extractor" ? "extract" : mind === "gatekeeper" ? "gate" : mind === "settlement" ? "settle" : "scout"); openView("studio"); }} />
+      <div id="studio-views" className="my-5 flex scroll-mt-4 flex-wrap items-center justify-between gap-2">
         <nav aria-label="Studio views" className="flex flex-wrap rounded-full border border-stone-200/80 bg-white p-1">
-          {(["arena", "browser", "studio", "bench", "export"] as Tab[]).map(view => (
+          {(["arena", "challenge", "studio", "browser", "bench", "export"] as Tab[]).map(view => (
             <button key={view} type="button" onClick={() => setTab(view)}
               aria-current={tab === view ? "page" : undefined}
-              className={"rounded-full px-3 py-1.5 text-xs font-semibold " + (tab === view ? "bg-ink text-canvas" : "text-stone-500")}>{view}</button>
+              className={"rounded-full px-3 py-1.5 text-xs font-semibold " + (tab === view ? "bg-ink text-canvas" : "text-stone-500")}>{view === "challenge" ? "challenge studio" : view === "studio" ? "squad studio" : view}</button>
           ))}
         </nav>
         <button type="button" className="rounded-full bg-amber-600 px-4 py-2 text-xs font-semibold text-white"
@@ -128,13 +136,16 @@ export default function App() {
       </div>
 
       {tab === "arena" && <section>
-        <p className="mb-2 text-xs text-stone-600">Four scripted browser duels</p>
+        <p className="mb-2 text-xs text-stone-600">Four designed challenges and your custom mission · simulated rules, replayable outcomes</p>
         <div className="mb-3 flex flex-wrap gap-1.5">{ARENA_CHALLENGES.map(challenge => (
           <button key={challenge.id} type="button" onClick={() => setArenaId(challenge.id)}
             className={"rounded-full border border-stone-200/80 px-3 py-1 text-[11px] font-semibold " + (arenaId === challenge.id ? "bg-ink text-canvas" : "bg-white text-stone-700")}>{challenge.name}</button>
-        ))}</div>
-        <ArenaViewport challengeId={arenaId} playing={playing} />
+        ))}{customChallenge && <button type="button" onClick={() => setArenaId("custom")} className={"rounded-full border border-amber-400 px-3 py-1 text-[11px] font-semibold " + (arenaId === "custom" ? "bg-ink text-canvas" : "bg-amber-50")}>★ {customChallenge.name}</button>}
+          <button type="button" onClick={() => setTab("challenge")} className="rounded-full border border-stone-200 bg-white px-3 py-1 text-[11px] font-semibold">+ Build a challenge</button></div>
+        <ArenaViewport challengeId={arenaId} challenge={arenaId === "custom" ? customChallenge ?? undefined : undefined} playing={playing} />
       </section>}
+
+      {tab === "challenge" && <ChallengeStudio onLaunch={challenge => { setCustomChallenge(challenge); setArenaId("custom"); setTab("arena"); }} />}
 
       {tab === "browser" && <section>
         <p className="mb-2 text-xs text-stone-600">Eight simulated research scenes with selector traces</p>
@@ -146,6 +157,7 @@ export default function App() {
       </section>}
 
       {tab === "studio" && <section>
+        <div className="nr-card mb-3 bg-gradient-to-r from-[#fff3dc] to-[#e5f5ef] p-4"><h2 className="nr-display text-xl">Assemble your specialist squad</h2><p className="mt-1 text-xs text-stone-600">Pick an objective, then tune each mind’s instructions, pruning budget, and score gate before exporting. Prompt edits are carried into the starter; this local dry run still uses fixture behavior.</p></div>
         <div className="mb-3 flex flex-wrap gap-1.5">{PRESETS.map(preset => (
           <button key={preset.id} type="button" onClick={() => onPreset(preset.id)}
             className={"rounded-full px-3 py-1 text-[11px] font-semibold " + (presetId === preset.id ? "bg-ink text-canvas" : "bg-white")}>{preset.name}</button>
@@ -187,14 +199,15 @@ export default function App() {
       </section>}
 
       {tab === "export" && <section className="nr-card p-4">
-        <p className="mb-3 text-xs text-stone-600">Executable fixture runner for the selected DAG. It does not contact live providers.</p>
+        <p className="mb-3 text-xs text-stone-600">Modular TypeScript starter with a working local demo, editable squad configuration, and adapter interfaces for your own model and browser services. No API key is bundled.</p>
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <select aria-label="Exported file" value={exportFile} onChange={event => setExportFile(event.target.value)}
             className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs">
             {Object.keys(files).map(file => <option key={file} value={file}>{file}</option>)}
           </select>
-          <button type="button" onClick={() => void downloadFiles(files, "nexusrelay-fixture-runner.zip")}
-            className="rounded-full bg-ink px-4 py-2 text-xs font-semibold text-canvas">Download workflow ZIP</button>
+          <button type="button" disabled={busy} onClick={() => void downloadStarter()}
+            className="rounded-full bg-ink px-4 py-2 text-xs font-semibold text-canvas disabled:opacity-40">Download workflow ZIP</button>
+          <button type="button" disabled={busy} onClick={() => void download()} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-semibold disabled:opacity-40">{busy ? "Packaging…" : "Download full source ZIP"}</button>
         </div>
         <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-2xl bg-sand p-3 font-mono text-[10px]">{files[exportFile]}</pre>
       </section>}

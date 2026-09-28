@@ -1,17 +1,17 @@
 import type { MindPersona, Preset } from "../types";
 export const PRESETS: Preset[] = [
-  { id: "price", name: "Competitive intelligence", blurb: "Tavily to Jev to ERP", objective: "Track Widget NX street price versus Vendor A/B list and POST to ERP" },
-  { id: "news", name: "Supplier risk audit", blurb: "News to Slack", objective: "Audit HelioParts supplier risk from recent wires and dispatch Slack" },
-  { id: "compliance", name: "Regulatory monitor", blurb: "DORA to audit log", objective: "Monitor DORA ICT-04 and SOC2 CC6.1 with Noul audit event" },
-  { id: "lead", name: "Lead enrichment", blurb: "Domain to CRM", objective: "Enrich Acme Robotics domain profile and upsert the CRM lead" },
-  { id: "vat", name: "VAT and tariff audit", blurb: "HS 8471 to SAP", objective: "HS 8471 VAT tariff scrape EU UK US to SAP landed-cost webhook" },
-  { id: "outage", name: "Multi-cloud outage triage", blurb: "Status to PagerDuty", objective: "Multi-cloud status page poll INC-4419 to PagerDuty" },
-  { id: "leak", name: "Credential leak scan", blurb: "Intel to SecOps", objective: "Credential leak crawl acme-robotics.example redacted to SecOps ticket" },
-  { id: "rfp", name: "RFP vendor matrix", blurb: "Extract to exec summary", objective: "RFP vendor matrix line-item delta math to executive summary" }
+  { id: "price", name: "Price maze", blurb: "Find the real offer", objective: "Compare Widget NX prices across storefront variants and explain the shipping difference" },
+  { id: "news", name: "Headline hunt", blurb: "Separate signal from noise", objective: "Investigate the HelioParts supplier news trail and extract severity and sentiment" },
+  { id: "compliance", name: "Rulebook puzzle", blurb: "Check the evidence", objective: "Compare DORA ICT-04 and SOC2 CC6.1 evidence against their control requirements" },
+  { id: "lead", name: "Identity trail", blurb: "Enrich a profile", objective: "Find the Acme Robotics domain profile and identify a verified contact" },
+  { id: "vat", name: "Tariff labyrinth", blurb: "Follow the numbers", objective: "Compare HS 8471 VAT tariff data for EU UK and US routes" },
+  { id: "outage", name: "Status detective", blurb: "Trace an incident", objective: "Investigate multi-cloud status pages for incident INC-4419 and its affected region" },
+  { id: "leak", name: "Signal sweep", blurb: "Redact and report", objective: "Review a simulated credential leak for acme-robotics.example and summarize redacted findings" },
+  { id: "rfp", name: "Vendor showdown", blurb: "Pick a winner", objective: "Compare RFP vendors by line-item cost and explain the delta" }
 ];
 export const MINDS: MindPersona[] = [
-  { id: "scout", name: "Scout mind", role: "Web extraction and search", color: "#D97706", channel: "TAVILY_RESEARCH", tag: "research", copy: "Reads the live page, ignores chrome, returns high-signal markdown." },
-  { id: "extractor", name: "Extractor mind", role: "Token prune and schema lift", color: "#7C3AED", channel: "TRANSFORMATION", tag: "transform", copy: "Prunes tokens and lifts a typed payload the rest of the squad can trust." },
-  { id: "gatekeeper", name: "Gatekeeper mind", role: "Jev Choice / Score / Noul", color: "#059669", channel: "HUMAN_GATE", tag: "gates", copy: "Deterministic gates. If the schema lies, the hop never fires." },
-  { id: "settlement", name: "Settlement mind", role: "Authenticated REST vessel", color: "#E11D48", channel: "REST_API_DISPATCH", tag: "dispatch", copy: "Authenticated write to ERP, PagerDuty, SecOps, or SAP." }
+  { id: "scout", name: "Scout", role: "The pathfinder", color: "#F97316", channel: "TAVILY_RESEARCH", tag: "01 · discover", copy: "Finds the useful page element in a maze of noise and decoys." },
+  { id: "extractor", name: "Extractor", role: "The pattern maker", color: "#8B5CF6", channel: "TRANSFORMATION", tag: "02 · shape", copy: "Turns a messy observation into clean, typed ingredients." },
+  { id: "gatekeeper", name: "Gatekeeper", role: "The skeptic", color: "#10B981", channel: "HUMAN_GATE", tag: "03 · verify", copy: "Checks the evidence before the squad calls it a success." },
+  { id: "settlement", name: "Settlement", role: "The finisher", color: "#F43F5E", channel: "REST_API_DISPATCH", tag: "04 · deliver", copy: "Packages the result for export. In this demo, nothing is sent outside." }
 ];

@@ -26,10 +26,10 @@ export function synthesize(objective: string): WorkflowDag {
   const schema = schemaFor(intent);
   const rest = restFor(intent);
   const nodes: WorkflowNode[] = [
-    { id: "scout", title: "Tavily research", channel: "TAVILY_RESEARCH", mind: "scout", dependsOn: [], pruneBudget: 720, prompt: objective, jev: { scoreMin: 0.62, choice: ["proceed", "retry_extract", "abort"], noul: null } },
-    { id: "extract", title: "Lift schema", channel: "TRANSFORMATION", mind: "extractor", dependsOn: ["scout"], pruneBudget: 480, prompt: "lift", jev: { scoreMin: 0.7, choice: ["proceed", "human_review", "abort"], noul: schema } },
-    { id: "gate", title: "Jev gate", channel: "HUMAN_GATE", mind: "gatekeeper", dependsOn: ["extract"], pruneBudget: 240, prompt: "gate", jev: { scoreMin: 0.72, choice: ["proceed", "human_review", "abort"], noul: schema } },
-    { id: "settle", title: "REST dispatch", channel: "REST_API_DISPATCH", mind: "settlement", dependsOn: ["gate"], pruneBudget: 200, prompt: "dispatch", rest, jev: { scoreMin: 0.65, choice: ["proceed", "abort"], noul: { type: "object", required: ["ok"], properties: { ok: { type: "boolean" } } } } }
+    { id: "scout", title: "Scout the scene", channel: "TAVILY_RESEARCH", mind: "scout", dependsOn: [], pruneBudget: 720, prompt: objective, jev: { scoreMin: 0.62, choice: ["proceed", "retry_extract", "abort"], noul: null } },
+    { id: "extract", title: "Shape the payload", channel: "TRANSFORMATION", mind: "extractor", dependsOn: ["scout"], pruneBudget: 480, prompt: "Extract structured clues", jev: { scoreMin: 0.7, choice: ["proceed", "human_review", "abort"], noul: schema } },
+    { id: "gate", title: "Verify the evidence", channel: "HUMAN_GATE", mind: "gatekeeper", dependsOn: ["extract"], pruneBudget: 240, prompt: "Check the result against the goal", jev: { scoreMin: 0.72, choice: ["proceed", "human_review", "abort"], noul: schema } },
+    { id: "settle", title: "Deliver the result", channel: "REST_API_DISPATCH", mind: "settlement", dependsOn: ["gate"], pruneBudget: 200, prompt: "Prepare the result for the user", rest, jev: { scoreMin: 0.65, choice: ["proceed", "abort"], noul: { type: "object", required: ["ok"], properties: { ok: { type: "boolean" } } } } }
   ];
   return { id: "dag_" + intent, objective, intent, nodes, edges: [["scout", "extract"], ["extract", "gate"], ["gate", "settle"]] };
 }

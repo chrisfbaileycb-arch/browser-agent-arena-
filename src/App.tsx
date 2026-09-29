@@ -33,6 +33,9 @@ export default function App() {
   const [report, setReport] = useState<HarnessReport | null>(null);
   const [verification, setVerification] = useState("");
   const [runLog, setRunLog] = useState("");
+  const [liveLog, setLiveLog] = useState("");
+  const [dispatchLive, setDispatchLive] = useState(false);
+  const [liveStatus, setLiveStatus] = useState<{ tavily: boolean; gemini: boolean; jev: boolean; destinations: string[] } | null>(null);
   const [exportFile, setExportFile] = useState("runner.ts");
   const files = useMemo(() => exportBundle(dag, customChallenge), [dag, customChallenge]);
   const selectedNode = dag.nodes.find(node => node.id === selectedId) ?? dag.nodes[0];
@@ -49,6 +52,14 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [playing]);
 
+  useEffect(() => {
+    if (tab !== "studio") return;
+    fetch("/api/workflow/status").then(response => {
+      if (!response.ok) throw new Error("Workflow server unavailable");
+      return response.json();
+    }).then(setLiveStatus).catch(() => setLiveStatus(null));
+  }, [tab]);
+
   const onPreset = (id: typeof presetId) => {
     const preset = PRESETS.find(item => item.id === id);
     if (!preset) return;
@@ -58,6 +69,7 @@ export default function App() {
     setDag(next);
     setSelectedId(next.nodes[0].id);
     setRunLog("");
+    setLiveLog("");
   };
   const onSynthesize = () => {
     const next = synthesize(objective);
@@ -65,6 +77,7 @@ export default function App() {
     setPresetId(next.intent);
     setSelectedId(next.nodes[0].id);
     setRunLog("");
+    setLiveLog("");
   };
   const updateNode = (patch: NodePatch) => {
     setDag(current => ({
@@ -83,6 +96,21 @@ export default function App() {
         payload: result.structured ?? null }, null, 2));
     } catch (error) {
       setRunLog(error instanceof Error ? error.message : "Simulation failed");
+    } finally { setBusy(false); }
+  };
+  const runLive = async () => {
+    setBusy(true);
+    setLiveLog("Calling live providers…");
+    try {
+      const workflow = { ...dag, objective };
+      const response = await fetch("/api/workflow/live", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ objective, workflow, dispatch: dispatchLive }),
+      });
+      const result = await response.json();
+      setLiveLog(JSON.stringify(result, null, 2));
+    } catch (error) {
+      setLiveLog(error instanceof Error ? error.message : "Live workflow failed");
     } finally { setBusy(false); }
   };
   const download = async () => {
@@ -157,7 +185,7 @@ export default function App() {
       </section>}
 
       {tab === "studio" && <section>
-        <div className="nr-card mb-3 bg-gradient-to-r from-[#fff3dc] to-[#e5f5ef] p-4"><h2 className="nr-display text-xl">Assemble your specialist squad</h2><p className="mt-1 text-xs text-stone-600">Pick an objective, then tune each mind’s instructions, pruning budget, and score gate before exporting. The full edited DAG is included as workflow.json. The original Venice runner embeds its smaller DAG and does not execute edited prompts.</p></div>
+        <div className="nr-card mb-3 bg-gradient-to-r from-[#fff3dc] to-[#e5f5ef] p-4"><h2 className="nr-display text-xl">Assemble your specialist squad</h2><p className="mt-1 text-xs text-stone-600">Pick an objective and tune each mind. Run live research, extraction, and Jev evaluation here, then send a gated result to your configured destination.</p></div>
         <div className="mb-3 flex flex-wrap gap-1.5">{PRESETS.map(preset => (
           <button key={preset.id} type="button" onClick={() => onPreset(preset.id)}
             className={"rounded-full px-3 py-1 text-[11px] font-semibold " + (presetId === preset.id ? "bg-ink text-canvas" : "bg-white")}>{preset.name}</button>
@@ -168,13 +196,19 @@ export default function App() {
         <div className="my-3 flex flex-wrap items-center gap-2">
           <button type="button" onClick={onSynthesize} className="rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-semibold">Synthesize DAG</button>
           <button type="button" disabled={busy} onClick={() => void dryRun()} className="rounded-full bg-amber-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-40">Simulate workflow</button>
+          <button type="button" disabled={busy} onClick={() => void runLive()} className="rounded-full bg-ink px-4 py-2 text-xs font-semibold text-white disabled:opacity-40">{busy ? "Running…" : "Run live workflow"}</button>
           <span className="text-[11px] text-stone-500">Detected intent: {dag.intent}</span>
+        </div>
+        <div className="nr-card mb-3 flex flex-wrap items-center justify-between gap-3 p-3 text-xs">
+          <span>{liveStatus ? `Live server · Tavily ${liveStatus.tavily ? "ready" : "needs key"} · Gemini ${liveStatus.gemini ? "ready" : "needs key"} · Jev ${liveStatus.jev ? "ready" : "needs key"} · ${liveStatus.destinations.includes(dag.intent) ? "destination ready" : "destination unset"}` : "Live server unavailable · start npm run server"}</span>
+          <label className="flex items-center gap-2 font-semibold"><input type="checkbox" checked={dispatchLive} onChange={event => setDispatchLive(event.target.checked)} />Send to configured destination if gate passes</label>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <PipelineCanvas dag={dag} selectedId={selectedId} activeMind={activeMind} onSelect={setSelectedId} />
           <NodeEditor node={selectedNode} onChange={updateNode} />
         </div>
         {runLog && <pre className="nr-card mt-3 whitespace-pre-wrap p-3 font-mono text-[10px]">{runLog}</pre>}
+        {liveLog && <div className="nr-card mt-3 p-3"><h3 className="nr-display text-lg">Live execution record</h3><pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap font-mono text-[10px]">{liveLog}</pre></div>}
       </section>}
 
       {tab === "bench" && <section className="nr-card p-4">
@@ -202,7 +236,7 @@ export default function App() {
         <div className="nr-kit-box">
           <div className="nr-kit-lid"><span>✦ N/R · BUILD YOUR OWN SERIES</span><span>STARTER KIT / 001</span></div>
           <div className="grid gap-6 p-5 sm:p-8 lg:grid-cols-[1.15fr_1fr] lg:items-center">
-            <div><p className="nr-eyebrow">Ready for the workbench</p><h2 className="nr-display text-4xl sm:text-5xl">Package your squad.</h2><p className="mt-3 max-w-lg text-sm leading-relaxed text-stone-600">Download the original Venice runner generated from your edited four stage workflow. It contains the Tavily request, Jev gateway request, and REST dispatch code exactly as written in the chat export.</p><div className="mt-5 flex flex-wrap gap-2"><button type="button" disabled={busy} onClick={() => void downloadStarter()} className="rounded-full bg-ink px-6 py-3 text-xs font-bold text-white disabled:opacity-40">{busy ? "Packing…" : "Unbox runner (.ZIP) ↗"}</button><button type="button" disabled={busy} onClick={() => void download()} className="rounded-full border border-stone-400 bg-white px-5 py-3 text-xs font-bold disabled:opacity-40">Full source ZIP</button></div><p className="mt-3 text-[11px] text-stone-500">Provider keys and destination URLs are supplied when you run the exported code.</p>{note && <p className="mt-2 text-xs font-semibold text-emerald-800" role="status">{note}</p>}</div>
+            <div><p className="nr-eyebrow">Ready for the workbench</p><h2 className="nr-display text-4xl sm:text-5xl">Package your squad.</h2><p className="mt-3 max-w-lg text-sm leading-relaxed text-stone-600">Download your edited squad with a runnable live research, extraction, Jev gate, and REST dispatch path. The original Venice runner is included unchanged beside it.</p><div className="mt-5 flex flex-wrap gap-2"><button type="button" disabled={busy} onClick={() => void downloadStarter()} className="rounded-full bg-ink px-6 py-3 text-xs font-bold text-white disabled:opacity-40">{busy ? "Packing…" : "Unbox runner (.ZIP) ↗"}</button><button type="button" disabled={busy} onClick={() => void download()} className="rounded-full border border-stone-400 bg-white px-5 py-3 text-xs font-bold disabled:opacity-40">Full source ZIP</button></div><p className="mt-3 text-[11px] text-stone-500">Provider keys and destination URLs are supplied when you run the exported code.</p>{note && <p className="mt-2 text-xs font-semibold text-emerald-800" role="status">{note}</p>}</div>
             <div className="nr-kit-tray"><span className="nr-kit-tray-label">INSIDE THE BOX · FOUR SPECIALISTS</span><div className="grid grid-cols-2 gap-2">{dag.nodes.map((node, index) => <div key={node.id} className="nr-kit-mini"><span>0{index + 1}</span><strong>{node.mind}</strong><small>{node.title}</small></div>)}</div><div className="nr-kit-ticket">✦ MISSION CARD <strong>{customChallenge?.name ?? "Price maze"}</strong></div></div>
           </div>
         </div>

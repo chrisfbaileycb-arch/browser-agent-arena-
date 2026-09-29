@@ -9,11 +9,14 @@
     "prebuild": "node scripts/generate-project-manifest.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "pretest": "node scripts/generate-project-manifest.mjs",
     "test": "vitest run",
-    "server": "tsx server/vesselServer.ts"
+    "browser:install": "playwright install chromium --only-shell",
+    "server": "node --env-file-if-exists=.env --import tsx server/vesselServer.ts"
   },
   "dependencies": {
     "jszip": "^3.10.1",
+    "playwright": "^1.62.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

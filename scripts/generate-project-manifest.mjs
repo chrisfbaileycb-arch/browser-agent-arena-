@@ -18,4 +18,6 @@ for (const dir of ["src", "server", "tests", "scripts", "docs", "original-venice
 const dest = path.join(root, "src/generated/projectFiles.ts");
 await mkdir(path.dirname(dest), { recursive: true });
 await writeFile(dest, "// Generated before dev/build. Edit the source files instead.\nexport const PROJECT_FILES: Record<string, string> = " + JSON.stringify(files) + ";\n");
+const exportNames = [".env.example", "server/liveWorkflow.ts", "server/browserDuel.ts", "src/types.ts", "src/data/arenaChallenges.ts", "src/core/jevEngine.ts", "src/core/synthesizer.ts", "src/core/tavilyAdapter.ts"];
+await writeFile(path.join(root, "src/generated/exportSources.ts"), "// Generated from the current live runner source.\nexport const EXPORT_SOURCES: Record<string, string> = " + JSON.stringify(Object.fromEntries(exportNames.map(name => [name, files[name]]))) + ";\n");
 console.log(`ZIP manifest: ${Object.keys(files).length} project files`);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createDuel, tickDuel, type DuelState, type LaneRuntime } from "../core/arenaEngine";
 import { ARENA_CHALLENGES, getArenaChallenge, type ArenaChallenge } from "../data/arenaChallenges";
+import type { BrowserDuelResult } from "../../server/browserDuel";
 function LaneView({ ch, lane, rt }: { ch: ArenaChallenge; lane: "A" | "B"; rt: LaneRuntime }) {
   const [inspectedId, setInspectedId] = useState<string | null>(null);
   const inspected = ch.nodes.find(node => node.id === inspectedId);
@@ -40,28 +41,53 @@ export default function ArenaViewport({ challengeId = "ecom", challenge, playing
   const builtIn = useMemo(() => getArenaChallenge(challengeId), [challengeId]);
   const ch = challenge ?? builtIn;
   const [duel, setDuel] = useState<DuelState>(() => createDuel(ch));
-  useEffect(() => { setDuel(createDuel(ch)); }, [ch]);
-  useEffect(() => { if (!playing) return; const t = window.setInterval(() => setDuel(d => tickDuel(d, ch)), 520); return () => window.clearInterval(t); }, [playing, ch]);
+  const [liveResult, setLiveResult] = useState<BrowserDuelResult | null>(null);
+  const [liveBusy, setLiveBusy] = useState(false);
+  const [liveError, setLiveError] = useState("");
+  useEffect(() => { setDuel(createDuel(ch)); setLiveResult(null); setLiveError(""); }, [ch]);
+  useEffect(() => { if (!playing || liveResult || liveBusy) return; const t = window.setInterval(() => setDuel(d => tickDuel(d, ch)), 520); return () => window.clearInterval(t); }, [playing, ch, liveResult, liveBusy]);
+  const runLive = async () => {
+    setLiveBusy(true); setLiveError(""); setLiveResult(null);
+    try {
+      const response = await fetch("/api/arena/live", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ challenge: ch }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `Browser server returned ${response.status}`);
+      setLiveResult(data as BrowserDuelResult);
+    } catch (error) { setLiveError(error instanceof Error ? error.message : "Live browser run failed"); }
+    finally { setLiveBusy(false); }
+  };
   return (
     <section className="nr-battle-mat">
       <div className="relative z-10 mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div><span className="nr-eyebrow">NexusRelay / Arena play-set</span><h2 className="nr-display text-2xl sm:text-3xl">{ch.name}</h2><p className="text-xs text-stone-600">{ch.blurb} · simulated browser duel</p></div>
+        <div><span className="nr-eyebrow">NexusRelay / Arena play-set</span><h2 className="nr-display text-2xl sm:text-3xl">{ch.name}</h2><p className="text-xs text-stone-600">{ch.blurb} · {liveResult ? "captured browser run" : "scripted play-set"}</p></div>
         <div className="flex items-center gap-2">
-          <span role="status" className="rounded-full bg-ink px-4 py-2 text-[11px] font-bold text-white">{duel.winner === "A" ? "Solo wins" : duel.winner === "B" ? "Relay wins" : duel.winner === "draw" ? "Both routes failed" : `Round ${duel.step + 1}`}</span>
-          <button type="button" onClick={() => setDuel(d => tickDuel(d, ch))} className="rounded-full border border-stone-300 bg-white px-4 py-2 text-[11px] font-bold">Step ↦</button>
-          <button type="button" onClick={() => setDuel(createDuel(ch))} className="rounded-full border border-stone-300 bg-white px-4 py-2 text-[11px] font-bold">↺ Replay</button>
+          <span role="status" className="rounded-full bg-ink px-4 py-2 text-[11px] font-bold text-white">{liveResult ? liveResult.winner === "draw" ? "Neither lane passed" : `${liveResult.winner === "A" ? "Solo" : "Relay"} passed first` : duel.winner === "A" ? "Solo wins" : duel.winner === "B" ? "Relay wins" : duel.winner === "draw" ? "Both routes failed" : `Round ${duel.step + 1}`}</span>
+          {/^https?:\/\//.test(ch.url) && <button type="button" disabled={liveBusy} onClick={() => void runLive()} className="rounded-full bg-emerald-800 px-4 py-2 text-[11px] font-bold text-white disabled:opacity-50">{liveBusy ? "Opening browser…" : "Run on live site ↗"}</button>}
+          {liveResult ? <button type="button" onClick={() => setLiveResult(null)} className="rounded-full border border-stone-300 bg-white px-4 py-2 text-[11px] font-bold">Play-set view</button> : <><button type="button" onClick={() => setDuel(d => tickDuel(d, ch))} className="rounded-full border border-stone-300 bg-white px-4 py-2 text-[11px] font-bold">Step ↦</button>
+          <button type="button" onClick={() => setDuel(createDuel(ch))} className="rounded-full border border-stone-300 bg-white px-4 py-2 text-[11px] font-bold">↺ Replay</button></>}
         </div>
       </div>
+      {liveError && <p role="alert" className="nr-card relative z-10 mb-3 p-3 text-xs text-rose-800">{liveError}</p>}
+      {liveBusy && <p role="status" className="nr-card relative z-10 mb-3 p-3 text-xs">Two isolated Chromium pages are navigating and collecting live evidence…</p>}
+      {liveResult ? <div className="relative z-10 grid gap-4 md:grid-cols-2">{liveResult.lanes.map(lane => <article key={lane.lane} className="nr-lane-card overflow-hidden p-4">
+        <div className="flex items-center justify-between gap-2"><h3 className="nr-display text-xl">Lane {lane.lane} · {lane.lane === "A" ? "Solo bot" : "Relay squad"}</h3><b className={lane.success ? "text-emerald-800" : "text-rose-800"}>{lane.success ? "Passed" : "Held"}</b></div>
+        <p className="mt-1 text-[11px] text-stone-600">{lane.durationMs} ms · {lane.promptTokens} model prompt tokens · {lane.events.length} captured events</p>
+        {lane.screenshot && <img className="mt-3 w-full rounded-xl border border-stone-200" alt={`Actual browser capture for lane ${lane.lane}`} src={`data:image/jpeg;base64,${lane.screenshot}`} />}
+        {lane.error && <p className="mt-2 text-xs text-rose-800">{lane.error}</p>}
+        <ol className="mt-3 max-h-48 space-y-1 overflow-y-auto text-[11px]">{lane.events.map((event, i) => <li key={i} className="rounded-lg bg-sand p-2"><b>{event.stage} · {event.action}</b> {event.selector && <code>{event.selector}</code>}<span className="block text-stone-600">{event.detail}</span></li>)}</ol>
+        {lane.payload && <pre className="mt-2 max-h-40 overflow-auto rounded-xl bg-ink p-3 text-[10px] text-stone-100">{JSON.stringify(lane.payload, null, 2)}</pre>}
+      </article>)}</div> : <>
       <div className="relative z-10 grid grid-cols-1 gap-4 md:grid-cols-2">
         <LaneView ch={ch} lane="A" rt={duel.laneA} />
         <LaneView ch={ch} lane="B" rt={duel.laneB} />
       </div>
-      <div className="nr-card relative z-10 mt-4 p-4">
+      </>}
+      {!liveResult && <div className="nr-card relative z-10 mt-4 p-4">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><strong className="nr-display text-lg">The round, step by step</strong><span className="text-[10px] text-stone-500">Scripted handoff cues · no live model calls</span></div>
         <ol className="grid max-h-40 gap-1 overflow-y-auto text-[11px] md:grid-cols-2">
           {[...duel.laneA.events, ...duel.laneB.events].sort((a, b) => a.step - b.step || a.lane.localeCompare(b.lane)).map((event, index) => <li key={`${event.lane}-${index}`} className="rounded-lg bg-sand px-2 py-1"><b>{event.lane} · {event.kind}</b> <span className="text-stone-500">{event.selector} · {event.message}</span></li>)}
         </ol>
-      </div>
+      </div>}
     </section>
   );
 }

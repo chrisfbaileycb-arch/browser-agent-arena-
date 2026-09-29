@@ -11,10 +11,10 @@ async function walk(relative) {
     if (excluded.has(entry.name)) continue;
     const name = path.posix.join(relative, entry.name);
     if (entry.isDirectory()) await walk(name);
-    else if (entry.isFile() && /\.(?:ts|tsx|css|md|txt|mjs)$/.test(entry.name)) files[name] = await readFile(path.join(root, name), "utf8");
+    else if (entry.isFile() && (/\.(?:ts|tsx|css|md|txt|mjs|json|js|html)$/.test(entry.name) || entry.name === "SHA256SUMS")) files[name] = await readFile(path.join(root, name), "utf8");
   }
 }
-for (const dir of ["src", "server", "tests", "scripts", "docs"]) await walk(dir);
+for (const dir of ["src", "server", "tests", "scripts", "docs", "original-venice"]) await walk(dir);
 const dest = path.join(root, "src/generated/projectFiles.ts");
 await mkdir(path.dirname(dest), { recursive: true });
 await writeFile(dest, "// Generated before dev/build. Edit the source files instead.\nexport const PROJECT_FILES: Record<string, string> = " + JSON.stringify(files) + ";\n");

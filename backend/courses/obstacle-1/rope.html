@@ -1,0 +1,56 @@
+<style>
+  .knot { border-left: 6px solid #c8a165; padding-left: 14px; }
+  .knot label { display: block; margin-bottom: 8px; }
+  .knot input, .knot select { font-size: 16px; padding: 8px 10px; border: 2px solid #1f1a12; border-radius: 4px; min-width: 260px; }
+  .knot button { margin-left: 8px; background: #1f1a12; color: #fff; border: 0; padding: 10px 18px; font-size: 15px; border-radius: 4px; }
+  .err { color: #b3261e; font-family: monospace; min-height: 18px; }
+</style>
+<section class="board">
+  <div class="station-tag">Station 4 · Rope Climb</div>
+  <h1>The Rope Climb</h1>
+  <p>Climb the rope one knot at a time. Each knot is a step of this form.</p>
+  <form id="rope" onsubmit="return false">
+    <div class="knot" id="knot-1">
+      <label for="climber">Knot 1 of 3 — Climber name (at least 3 letters)</label>
+      <input id="climber" name="climber" type="text" placeholder="e.g. Pinchy" autocomplete="off">
+      <button type="button" id="knot-1-next">Next knot</button>
+    </div>
+    <div class="knot" id="knot-2" hidden>
+      <label for="grip">Knot 2 of 3 — Choose the knot that holds. Hint: sailors trust the knot named after a ship's bow.</label>
+      <select id="grip" name="grip">
+        <option value="">— choose a knot —</option>
+        <option>Granny knot</option><option>Slip knot</option><option>Bowline</option><option>Clove hitch</option>
+      </select>
+      <button type="button" id="knot-2-next">Next knot</button>
+    </div>
+    <div class="knot" id="knot-3" hidden>
+      <label for="length">Knot 3 of 3 — Rope check: type the sum of <b id="num-a"></b> + <b id="num-b"></b></label>
+      <input id="length" name="length" type="text" inputmode="numeric" autocomplete="off">
+      <button type="button" id="knot-3-next">Reach the top</button>
+    </div>
+    <p class="err" id="rope-err" role="alert"></p>
+  </form>
+</section>
+<script>
+(function () {
+  var a = 3 + Math.floor(Math.random() * 9), b = 2 + Math.floor(Math.random() * 9), err = document.getElementById("rope-err");
+  document.getElementById("num-a").textContent = a; document.getElementById("num-b").textContent = b;
+  var knot = function (n) { [1, 2, 3].forEach(function (k) { document.getElementById("knot-" + k).hidden = k !== n; }); err.textContent = ""; };
+  document.getElementById("knot-1-next").addEventListener("click", function () {
+    if (document.getElementById("climber").value.trim().length < 3) { err.textContent = "Name needs at least 3 letters."; return; }
+    knot(2);
+  });
+  document.getElementById("knot-2-next").addEventListener("click", function () {
+    var v = document.getElementById("grip").value;
+    if (v !== "Bowline") { err.textContent = v ? "The " + v + " slipped! Choose again." : "Choose a knot first."; return; }
+    knot(3);
+  });
+  document.getElementById("knot-3-next").addEventListener("click", function () {
+    if (Number(document.getElementById("length").value.trim()) !== a + b) { err.textContent = "Wrong rope length. Check the sum."; return; }
+    Course.clear();
+  });
+  [["climber", "knot-1-next"], ["length", "knot-3-next"]].forEach(function (p) {
+    document.getElementById(p[0]).addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); document.getElementById(p[1]).click(); } });
+  });
+})();
+</script>

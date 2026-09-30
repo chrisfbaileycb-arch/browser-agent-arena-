@@ -1,0 +1,31 @@
+<style>
+  #wall { height: 260px; overflow-y: auto; border: 4px solid #4f3216; border-radius: 3px; background: #c9a27e; }
+  .bricks { height: 1400px; background-image: linear-gradient(#8a5a3b 3px, transparent 3px), linear-gradient(90deg, #8a5a3b 3px, transparent 3px);
+    background-size: 84px 38px; display: flex; align-items: flex-start; justify-content: center; padding-top: 90px; }
+  .bricks span { background: rgba(255,255,255,.8); padding: 6px 10px; font-size: 13px; }
+  #hold-slot { padding: 16px; text-align: center; background: #e9d8c3; min-height: 72px; }
+  .hold { background: #2f6b2f; color: #fff; border: 2px solid #1f1a12; padding: 12px 22px; font-size: 16px; border-radius: 30px; }
+</style>
+<section class="board">
+  <div class="station-tag">Station 2 · The Wall</div>
+  <h1>The Wall</h1>
+  <p>A tall wall blocks the path. The climbing hold is at the very bottom of the wall. Scroll down inside the wall to reveal the hold, then grab it.</p>
+  <button class="btn flashy" id="ladder" type="button">Use the rental ladder (saves time!)</button>
+  <div id="wall" aria-label="The wall" style="margin-top:14px">
+    <div class="bricks"><span>Keep scrolling down. The hold is at the bottom.</span></div>
+    <div id="hold-slot"></div>
+  </div>
+</section>
+<script>
+(function () {
+  var wall = document.getElementById("wall");
+  document.getElementById("ladder").addEventListener("click", function () { Course.decoy("The rental ladder was a cardboard cut-out."); });
+  wall.addEventListener("scroll", function () {
+    if (document.getElementById("grab-hold") || wall.scrollTop + wall.clientHeight < wall.scrollHeight - 30) return;
+    var b = document.createElement("button");
+    b.id = "grab-hold"; b.type = "button"; b.className = "hold"; b.textContent = "Grab the hold";
+    b.addEventListener("click", function () { Course.clear(); });
+    document.getElementById("hold-slot").appendChild(b);
+  });
+})();
+</script>

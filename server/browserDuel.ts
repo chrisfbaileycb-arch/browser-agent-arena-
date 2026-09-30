@@ -47,7 +47,7 @@ async function provider(url: string, key: string, body: unknown, client: typeof 
 }
 
 async function model(prompt: string, config: BrowserDuelConfig, id: "A" | "B" = "B"): Promise<{ output: Record<string, unknown>; tokens: number }> {
-  if (id === "A" && config.openaiKey) {
+  if ((id === "A" && config.openaiKey) || (!config.geminiKey && config.openaiKey)) {
     const url = "https://api.openai.com/v1/chat/completions";
     const body = {
       model: config.openaiModel || "gpt-4o-mini",
@@ -65,7 +65,8 @@ async function model(prompt: string, config: BrowserDuelConfig, id: "A" | "B" = 
     return { output: jsonObject(text), tokens: Number(usage?.prompt_tokens) || 0 };
   }
 
-  const geminiKey = config.geminiKey || config.openaiKey || "";
+  const geminiKey = config.geminiKey || "";
+  if (!geminiKey) throw new Error("GEMINI_API_KEY is required for this lane.");
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.geminiModel || "gemini-2.5-flash")}:generateContent`;
   const response = await provider(url, geminiKey, { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json" } }, config.fetcher ?? fetch, "x-goog-api-key");
   const candidates = response.candidates as Array<{ content?: { parts?: Array<{ text?: string }> } }> | undefined;
@@ -156,9 +157,10 @@ async function lane(challenge: ArenaChallenge, config: BrowserDuelConfig, browse
     } else {
       const gatePrompt = `You are the Gatekeeper judging a browser extraction. Mission: ${challenge.blurb}. Page URL: ${page.url()}. Schema: ${JSON.stringify(challenge.schema)}. Extracted payload: ${JSON.stringify(payload)}. Evidence text: ${evidence}. Visible page text: ${evidenceText.slice(0, 3000)}. Decide whether this extraction is supported. Return JSON {"choice":"proceed"|"review"|"abort", "score":<number 0.0-1.0>, "noul":<number 0.0-1.0>}.`;
       const evalResult = await model(gatePrompt, config, "B");
-      choice = String(evalResult.output.choice ?? "proceed");
-      score = typeof evalResult.output.score === "number" ? evalResult.output.score : 0.85;
-      noul = typeof evalResult.output.noul === "number" ? evalResult.output.noul : 0.9;
+      // Fail closed: anything unparseable holds the result.
+      choice = typeof evalResult.output.choice === "string" ? evalResult.output.choice : "abort";
+      score = typeof evalResult.output.score === "number" ? evalResult.output.score : 0;
+      noul = typeof evalResult.output.noul === "number" ? evalResult.output.noul : 0;
     }
     const local = noulLocal(payload, challenge.schema);
     const violations = [...local.violations, ...assertPayload(challenge, payload)];

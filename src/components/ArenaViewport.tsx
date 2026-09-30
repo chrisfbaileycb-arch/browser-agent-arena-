@@ -64,14 +64,16 @@ export default function ArenaViewport({ challengeId = "ecom", challenge, playing
         loops: d.laneA.loops + 1,
         tokens: d.laneA.tokens + 4800,
         drift: d.laneA.drift + 0.45,
-        lastBadge: "💥 TRAP MISFIRE",
+        lastBadge: "TRAP MISFIRE",
         events: [
           ...d.laneA.events,
           {
+            t: Date.now(), lane: "A" as const, selector: d.laneA.pointer.selector, coords: { x: d.laneA.pointer.x, y: d.laneA.pointer.y },
+            jevCertainty: 0.2, driftIndex: d.laneA.drift + 0.45, latencyMs: 0, memoryKb: d.laneA.memoryKb,
             step: d.step,
             kind: "loop" as const,
-            badge: "💥 STICKY TRAP",
-            note: "Trapped in decorative newsletter overlay loop",
+            badge: "STICKY TRAP",
+            message: "Trapped in decorative newsletter overlay loop",
             tokens: d.laneA.tokens + 4800
           }
         ]
@@ -269,7 +271,7 @@ export default function ArenaViewport({ challengeId = "ecom", challenge, playing
           </span>
           <span className="text-stone-300">
             {lastSoloEvent?.kind === "loop" ? (
-              <span className="text-rose-400 font-bold">💥 SOLO BOT TRAPPED: {lastSoloEvent.note} (+4,800 tok)</span>
+              <span className="text-rose-400 font-bold">SOLO BOT TRAPPED: {lastSoloEvent.message} (+4,800 tok)</span>
             ) : (
               <span>Lane A: {duel.laneA.lastBadge} · Lane B: {duel.laneB.lastBadge} · Active Mind: <strong className="text-[#34D399] font-black">{currentRelayMind}</strong></span>
             )}

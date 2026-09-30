@@ -1,0 +1,19 @@
+# Test credentials — Steps of Execution / Browser Agent Arena
+
+Email/password (JWT httpOnly cookies `access_token` + `refresh_token`, Bearer header also accepted):
+
+| Role | Email | Password | Plan | Notes |
+|---|---|---|---|---|
+| admin | admin@steps.dev | ArenaAdmin!2026 | pro | owns the 3 champion crabs; can POST /api/admin/champion-runs |
+| user (free) | free@steps.dev | FreeCrab!2026 | free | 1 execution allowed (runs + workflow runs share quota) |
+| user (pro) | pro@steps.dev | ProCrab!2026 | pro | unlimited runs, exports |
+
+All three seeded accounts have `dev_platform_key=true`: with `ALLOW_PLATFORM_KEY_FOR_DEV=true` they fall back to the Emergent universal key for gemini/openai/anthropic/openrouter(Jev) when they have not saved their own key. Newly registered users have NO fallback (BYOK only). Tavily has no platform fallback.
+
+Google login: Emergent-managed (https://auth.emergentagent.com) -> redirect back to `<origin>/arena#session_id=…` -> POST /api/auth/google/session. There's no fixed Google test account (real Google OAuth, users upserted by email as plan=free). To simulate it in Playwright, intercept POST /api/auth/google/session and fulfil it with the response of POST /api/auth/login for any account above.
+
+Session transport: httpOnly cookies `access_token` (30 min) + `refresh_token` (7 d) with Secure; SameSite=None; Path=/. The login/register/google/refresh responses ALSO return `token` + `refresh_token` in the JSON body; the frontend stores them in localStorage (`soe_token`, `soe_refresh`) and sends `Authorization: Bearer <token>`. POST /api/auth/refresh accepts the cookie or the JSON body `{"refresh_token": "..."}`.
+CORS: CORS_ORIGINS list + CORS_ORIGIN_REGEX (any https *.emergentagent.com / *.emergent.host / *.emergentcf.cloud origin).
+
+Auth endpoints: POST /api/auth/register, /api/auth/login, /api/auth/logout, /api/auth/refresh, /api/auth/google/session, GET /api/auth/me
+Stripe test card: 4242 4242 4242 4242, any future date, any CVC.

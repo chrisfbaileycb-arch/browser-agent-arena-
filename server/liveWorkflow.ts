@@ -75,7 +75,7 @@ export async function runLiveWorkflow(dag: WorkflowDag, config: LiveConfig, send
     }).filter(doc => doc.text);
     sources = excerpts.map(doc => doc.url);
     trace.push({ stage: "Scout", detail: `${docs.length} live Tavily results; ${excerpts.length} source excerpts retained.` });
-  } else {
+  } else if (process.env.ALLOW_FIXTURE_CORPUS === "true") {
     const { selectCorpus } = await import("../src/core/tavilyAdapter.js");
     const docs = selectCorpus(dag.objective);
     let remaining = Math.max(200, nodes[0].pruneBudget) * 4;
@@ -85,7 +85,9 @@ export async function runLiveWorkflow(dag: WorkflowDag, config: LiveConfig, send
       return { url: doc.url, title: doc.title, text };
     }).filter(doc => doc.text);
     sources = excerpts.map(doc => doc.url);
-    trace.push({ stage: "Scout", detail: `Scout collected ${excerpts.length} domain sources for ${dag.intent}.` });
+    trace.push({ stage: "Scout", detail: `FIXTURE corpus (not live): ${excerpts.length} sources for ${dag.intent}.` });
+  } else {
+    throw new Error("TAVILY_API_KEY is required for live execution.");
   }
 
   const schema = nodes[1].jev.noul ?? schemaFor(dag.intent);
@@ -143,10 +145,12 @@ Decide whether the payload is supported by the cited source text. Return a JSON 
     );
     const cand = gateResp.candidates as Array<{ content?: { parts?: Array<{ text?: string }> } }> | undefined;
     const txt = cand?.[0]?.content?.parts?.map(part => part.text ?? "").join("");
-    const parsedGate = txt ? JSON.parse(txt) as { route?: string; score?: number; noul?: number } : {};
-    choice = String(parsedGate.route ?? "proceed");
-    score = typeof parsedGate.score === "number" ? parsedGate.score : 0.88;
-    noul = typeof parsedGate.noul === "number" ? parsedGate.noul : 0.92;
+    let parsedGate: { route?: string; score?: number; noul?: number } = {};
+    try { parsedGate = txt ? JSON.parse(txt) : {}; } catch { parsedGate = {}; }
+    // Fail closed: a missing or unparseable gate verdict never proceeds.
+    choice = typeof parsedGate.route === "string" ? parsedGate.route : "abort";
+    score = typeof parsedGate.score === "number" ? parsedGate.score : 0;
+    noul = typeof parsedGate.noul === "number" ? parsedGate.noul : 0;
   }
   const gate = { choice, score, noul, schemaPass: local.pass, violations: local.violations };
   const passed = local.pass && citations.length > 0 && evidence.trim().length > 0 && choice === "proceed" && score >= nodes[2].jev.scoreMin && noul >= nodes[2].jev.scoreMin;

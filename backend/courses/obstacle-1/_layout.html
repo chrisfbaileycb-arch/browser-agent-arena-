@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} — The Tidepool Gauntlet</title>
+<script id="course-config" type="application/json">{{CONFIG}}</script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Georgia, "Times New Roman", serif; color: #1f1a12; min-height: 100vh;
+    background: #5f8f3e repeating-linear-gradient(90deg, rgba(255,255,255,.06) 0 70px, transparent 70px 140px); }
+  header.sign { display: flex; justify-content: space-between; align-items: center; padding: 12px 28px; color: #fff3d6;
+    background: #8a5a2c repeating-linear-gradient(0deg, rgba(0,0,0,.08) 0 3px, transparent 3px 11px); border-bottom: 6px solid #4f3216; }
+  header.sign small { display: block; font-family: monospace; font-size: 11px; letter-spacing: .18em; opacity: .85; }
+  header.sign strong { font-size: 20px; letter-spacing: .08em; }
+  #timer { font-family: monospace; font-size: 14px; background: #1f1a12; padding: 6px 10px; border-radius: 3px; }
+  #course-map { display: flex; gap: 6px; padding: 12px 28px; flex-wrap: wrap; background: rgba(31,26,18,.35); }
+  .post { font-family: monospace; font-size: 12px; background: #f3e6c8; color: #4f3216; padding: 5px 10px 5px 6px; border-radius: 2px;
+    border-bottom: 3px solid #4f3216; display: inline-flex; gap: 6px; align-items: center; }
+  .post b { background: #4f3216; color: #f3e6c8; border-radius: 50%; width: 18px; height: 18px; display: inline-grid; place-items: center; font-size: 11px; }
+  .post.done { background: #cfe8c2; } .post.done b { background: #2f6b2f; }
+  .post.here { background: #ffb347; color: #1f1a12; } .post.here b { background: #d9432b; }
+  main { max-width: 980px; margin: 0 auto; padding: 22px 28px 48px; }
+  #toast { min-height: 26px; margin-bottom: 10px; font-family: monospace; font-size: 14px; font-weight: bold; color: #fff; }
+  #toast:not(:empty) { background: #b3261e; padding: 6px 12px; border-radius: 3px; display: inline-block; }
+  .board { background: #fbf4e2; padding: 22px 26px; border: 10px solid transparent; border-radius: 4px;
+    border-image: repeating-linear-gradient(45deg, #d7b57a 0 7px, #8a5a2c 7px 14px) 10; box-shadow: 0 10px 0 rgba(0,0,0,.25); }
+  .station-tag { font-family: monospace; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: #d9432b; }
+  h1 { margin: 4px 0 8px; font-size: 30px; }
+  p { line-height: 1.55; margin: 6px 0 12px; }
+  button { font-family: inherit; cursor: pointer; }
+  .btn { display: inline-block; font-size: 17px; padding: 12px 22px; border-radius: 4px; border: 2px solid #1f1a12; text-decoration: none; color: #1f1a12; }
+  .btn.go { background: #d9432b; color: #fff; box-shadow: 0 4px 0 #1f1a12; }
+  .btn.flashy { background: #ffe14d; box-shadow: 0 4px 0 #1f1a12; font-weight: bold; }
+  .row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
+  .rules { line-height: 1.7; }
+  .notice { border-image: repeating-linear-gradient(45deg, #d9432b 0 7px, #1f1a12 7px 14px) 10; }
+</style>
+</head>
+<body data-station="{{STATION}}" data-decoys="0">
+<header class="sign">
+  <div><small>STEPS OF EXECUTION · OBSTACLE COURSE 1</small><strong>THE TIDEPOOL GAUNTLET</strong></div>
+  <div id="timer">00:00</div>
+</header>
+<nav id="course-map" aria-label="Course map"></nav>
+<script>
+window.Course = (function () {
+  var cfg = JSON.parse(document.getElementById("course-config").textContent);
+  var busy = false;
+  var say = function (msg) { document.getElementById("toast").textContent = msg; };
+  var post = function (path) {
+    return fetch("/api/course-attempts/" + cfg.attempt + path, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ station: cfg.station, nonce: cfg.nonce })
+    }).then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.detail || "Request failed"); return d; }); });
+  };
+  var map = function () {
+    document.getElementById("course-map").innerHTML = cfg.order.map(function (s, i) {
+      var cls = cfg.cleared.indexOf(s) >= 0 ? "done" : i === cfg.index ? "here" : "";
+      return '<span class="post ' + cls + '"><b>' + (i + 1) + "</b>" + cfg.names[i] + "</span>";
+    }).join("");
+  };
+  map();
+  document.body.dataset.decoys = String(cfg.decoys);
+  if (cfg.started_at) {
+    var t0 = Date.parse(cfg.started_at), tick = function () {
+      var s = Math.max(0, Math.floor((Date.now() - t0) / 1000));
+      document.getElementById("timer").textContent = String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+    };
+    tick(); setInterval(tick, 1000);
+  }
+  return {
+    cfg: cfg, say: say,
+    clear: function () {
+      if (busy) return Promise.resolve(null);
+      busy = true;
+      return post("/clear").then(function (d) {
+        if (d.next_path) { location.href = d.next_path; } else { cfg.cleared.push(cfg.station); map(); busy = false; }
+        return d;
+      }).catch(function (e) { busy = false; say(e.message); return null; });
+    },
+    decoy: function (msg) {
+      return post("/decoy").then(function (d) {
+        document.body.dataset.decoys = String(d.decoys);
+        say("TRAP! " + msg + " (decoys hit: " + d.decoys + ")");
+      }).catch(function (e) { say(e.message); });
+    }
+  };
+})();
+</script>
+<main>
+  <div id="toast" role="alert"></div>
+  {{BODY}}
+</main>
+
+</body>
+</html>

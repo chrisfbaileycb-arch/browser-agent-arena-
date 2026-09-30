@@ -1,0 +1,18 @@
+<section class="board">
+  <div class="station-tag">Station 1 · Start Line</div>
+  <h1>Start Line</h1>
+  <p>Welcome to the Tidepool Gauntlet. Seven stations stand between you and the finish flag: the start line, the wall, the decoy doors, the rope climb, the balance beam, the tunnel and the finish. Each station opens the next one.</p>
+  <ul class="rules">
+    <li>Read every sign. The most obvious button is often a trap.</li>
+    <li>Stations must be cleared in order. There are no shortcuts.</li>
+    <li>The finish flag reveals a success code. Report it exactly.</li>
+  </ul>
+  <div class="row">
+    <button id="skip" class="btn flashy" type="button">Skip straight to the finish &#9654;&#9654;</button>
+    <button id="go" class="btn go" type="button">Step onto the start line</button>
+  </div>
+</section>
+<script>
+  document.getElementById("skip").addEventListener("click", function () { Course.decoy("There is no skipping in the Gauntlet."); });
+  document.getElementById("go").addEventListener("click", function () { Course.clear(); });
+</script>

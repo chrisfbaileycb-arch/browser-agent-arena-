@@ -1,0 +1,42 @@
+<style>
+  #beam { position: relative; height: 260px; border-radius: 4px; overflow: hidden;
+    background: linear-gradient(transparent 118px, #8a5a2c 118px, #8a5a2c 142px, transparent 142px), #6f4a2a repeating-linear-gradient(90deg, rgba(0,0,0,.12) 0 4px, transparent 4px 30px); }
+  #beam::after { content: "MUD"; position: absolute; right: 12px; bottom: 8px; font-family: monospace; color: rgba(255,255,255,.4); }
+  .plank { position: absolute; width: 130px; height: 44px; background: #e9c98f; border: 3px solid #4f3216; border-radius: 3px; font-size: 15px; transition: left .3s ease; }
+  .plank.stepped { background: #cfe8c2; }
+</style>
+<section class="board">
+  <div class="station-tag">Station 5 · Balance Beam</div>
+  <h1>The Balance Beam</h1>
+  <p>Planks sway across the mud pit. Step on the planks in order: Plank 1, then Plank 2, then Plank 3. Stepping on a plank out of order drops you in the mud. The planks sway for a moment, then hold still. Step while they are still.</p>
+  <div id="beam" aria-label="Balance beam">
+    <button class="plank" type="button" data-n="2">Plank 2</button>
+    <button class="plank" type="button" data-n="3">Plank 3</button>
+    <button class="plank" type="button" data-n="1">Plank 1</button>
+  </div>
+  <p id="beam-status">Next plank: 1</p>
+</section>
+<script>
+(function () {
+  var next = 1, beam = document.getElementById("beam"), planks = [].slice.call(document.querySelectorAll(".plank")), tick = 0;
+  var place = function () {
+    planks.forEach(function (p, i) {
+      if (p.classList.contains("stepped")) return;
+      p.style.left = (10 + Math.floor(Math.random() * Math.max(1, beam.clientWidth - 160))) + "px";
+      p.style.top = (14 + i * 82) + "px";
+    });
+  };
+  place();
+  setInterval(function () { tick++; if (tick % 5 < 2) place(); }, 400);
+  planks.forEach(function (p) {
+    p.addEventListener("click", function () {
+      var n = Number(p.dataset.n);
+      if (p.classList.contains("stepped")) return;
+      if (n !== next) { Course.decoy("Plank " + n + " was out of order. Splash!"); return; }
+      p.classList.add("stepped"); p.textContent = "Plank " + n + " (stepped)"; next++;
+      document.getElementById("beam-status").textContent = next > 3 ? "Beam crossed!" : "Next plank: " + next;
+      if (next > 3) Course.clear();
+    });
+  });
+})();
+</script>

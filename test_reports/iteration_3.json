@@ -1,0 +1,48 @@
+{
+  "summary": "Iteration 3 covers the auth/CORS hardening plus the broadcast/tournament/squad/home redesign. Added 24 new backend tests (test_arena_new_features.py) for auth-response tokens + Secure/SameSite=None cookies, Bearer /auth/me, JSON /auth/refresh, bogus /auth/google/session returning 401 JSON (no 500), CORS preflight, /api/stats, /api/course/start real HTML, coach shout /runs/{id}/hint (401/404/409/finished/non-crab), /api/tournaments (402 free, 422 invalid, 409 existing, list, bracket shape) and /api/squad (default, bad formation 422, foreign crab 404, valid PUT + GET persistence, unauth 401). Backend: 67/68 pass (23/24 new + full existing suite minus 2 long-running LLM tests that are covered in iteration 2). The single failing test is a Cloudflare edge/ingress override — see RCA. Frontend: fully verified /home (hero, CTA, stats bar, 4-slide carousel), /arena guest self-report -> signin-modal with login+close btns, Google OAuth callback simulation (intercept /auth/google/session with a real login response) -> lands signed-in on /arena, no redirect loop to /login, hash cleared. Signed-in /login redirects to /arena. Signed-in Get course link returns absolute course URL that serves real station HTML. Broadcast on /arena and /course renders 3D stadium canvas, scoreboard-a (+b for duels), run-timer, minimap, coach-bar (input disabled when no live own-crab run), slide-in callouts (WALL CLEARED! / OFF THE LINE! observed), broadcast-replay-btn works, tournament-panel with bracket + neon champion-card (existing 2-entrant tournament from iteration 2 verified — champion GPT Pincer), squad-card with formation-diagram + all controls. Did NOT start any new real tournament (each match ~90s) — spec explicitly cautions against this.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "OPTIONS /api/* (preview edge)", "issue": "Cloudflare/ingress edge intercepts OPTIONS preflights and returns a fixed Access-Control-Allow-Origin = the cluster deploy URL (https://<id>.cluster-8.preview.emergentcf.cloud) instead of echoing the request Origin. Direct backend hits (127.0.0.1:8001) correctly echo the origin per CORS_ORIGIN_REGEX. Browsers on any *.emergentagent.com origin would see a CORS mismatch on preflight. Backend code is correct; this is an infra/edge config issue only visible through the public URL."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Broadcast callouts", "issues": ["During a champion replay the callouts stack in the upper-left corner and can briefly overlap the scoreboard on 1080p viewports; cosmetic only."]},
+      {"screen": "WebGL console", "issues": ["Chromium 'GPU stall due to ReadPixels' warning persists from r3f canvases (cosmetic, called out in iteration 2)."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_arena_new_features.py",
+    "/app/backend/tests/test_arena_backend.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/iter3_new.xml",
+    "/app/test_reports/pytest/iter3_full.xml"
+  ],
+  "action_items": [
+    "Investigate Cloudflare/ingress OPTIONS handling for the preview URL — the edge overrides Access-Control-Allow-Origin with a fixed cluster domain. Backend CORS middleware is correct; the edge should either forward OPTIONS to the backend or reflect the configured allowed origins. If this is preview-only behaviour, no action needed for prod, but note it in release docs."
+  ],
+  "critical_code_review_comments": [
+    "auth.py: set_session uses COOKIE={'samesite':'none'} — starlette lowercases to 'none' which is correct. Cookies + JSON tokens are both returned; frontend api.js saves them into localStorage and falls back to Bearer. Good defence for cross-site cookie blockers.",
+    "arena_api.play_match: on start_run HTTPException it sets error and returns entrant `a` as the surviving fighter; if both entrants raise (e.g. no key) `a` is still returned as winner even though its run never started. Consider returning None or marking the match as bye/error so the champion isn't a crab that never actually ran.",
+    "server.shout_hint validates ownership + status but pushes hint even if the last run step already exceeded max_steps — fine because status check catches it, but the pending_hints list is unbounded. Consider capping to N or using $push with $slice.",
+    "arena_api.entrant_of allows adapter=='crab' only via crab_id path; passing adapter='crab' with no crab_id => 422 message says 'champion adapter id' which is slightly misleading. Cosmetic.",
+    "arena_api.SquadBody.slots is a free-form dict; extra keys are silently dropped when writing (only ROLES kept). Fine, but no 422 on unknown role keys — user could paste any JSON. Consider a strict Pydantic model with per-role Optional[str] fields.",
+    "Broadcast.jsx CoachBar identifies the coach target by run.user_id === user.id; if IDs are string-compared this works, but the earlier data-testid path only works when the Coach's live target run is *this user's own crab* (adapter==='crab'). Confirmed matches server-side gating. Good."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_arena_new_features.py"
+  ],
+  "success_rate": {
+    "backend": "98.5% (67/68 — 1 infra CORS edge)",
+    "frontend": "100% of tested flows (home, guest arena, Google callback simulation, signed-in /login redirect, course URL, broadcast on /arena + /course, squad, tournament bracket)"
+  },
+  "test_credentials": "admin@steps.dev / ArenaAdmin!2026; pro@steps.dev / ProCrab!2026; free@steps.dev / FreeCrab!2026",
+  "seed_data_creation": "Test suite saved/removed a squad for pro@steps.dev (persistence verified). No new tournaments created (spec explicitly warns real LLM cost).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run backend tests: `cd /app/backend && pytest tests/test_arena_backend.py tests/test_arena_new_features.py -v`. Login endpoint IP-rate-limited to 10/60s — space runs or add sleep(65) between full-suite passes. For Playwright, simulate Google OAuth by page.route()'ing **/api/auth/google/session and fulfilling with the response of a real POST /api/auth/login for any seeded account, then goto /arena#session_id=fake. Avoid creating new tournaments — each match runs a real ~90s LLM call. The 1 pytest CORS failure is not backend code; it's the Cloudflare edge substituting the ACAO on OPTIONS.",
+  "rca of the issue": "TestCORS::test_preflight_emergentagent_origin fails because the Cloudflare/ingress edge (which fronts the preview URL) intercepts OPTIONS and returns Access-Control-Allow-Origin = https://<id>.cluster-8.preview.emergentcf.cloud (its own hostname) regardless of the request Origin. Reproduced by `curl -i -X OPTIONS <backend-url>/api/auth/login -H 'Origin: https://x.preview.emergentagent.com' -H 'Access-Control-Request-Method: POST'`. Hitting the backend directly (curl to http://127.0.0.1:8001/...) returns ACAO=echoed origin correctly, proving the CORSMiddleware regex `^https://([a-z0-9-]+\\.)*(emergentagent\\.com|emergent\\.host|emergentcf\\.cloud)$` and allow_credentials=True are configured correctly. Mitigation: either configure the CF/ingress to pass OPTIONS to origin, or add all expected browser origins to CORS_ORIGINS. No app code change needed."
+}

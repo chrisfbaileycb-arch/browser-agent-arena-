@@ -1,0 +1,40 @@
+{
+  "summary": "First full-stack test of Steps of Execution / Browser Agent Arena. Backend pytest suite covers 35 tests across auth, safety, keys, crabs, runs BYOK, free quota, replays, leaderboard, course pages, self-report, challenges, workflow, exports, and billing — all 35 pass. Frontend Playwright pass verified home/hero, signed-out arena replay chips, protected-route redirect to /login, public leaderboard, sign in (pro), crab create, arena adapters, keys save/test/delete for tavily (UI updates 'Saved · ending 6789' -> 'last test: failed' -> 'Not saved'), studio default mission, 8 workflow presets, pricing 'Pro is active', logout, and mobile hamburger menu with nav items. No blocking bugs found. Did not execute a real live run (LLM cost/time) or complete a Stripe payment.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "All pages (console)", "issues": ["React Router v6 deprecation warnings (v7_startTransition and v7_relativeSplatPath). Non-blocking but noisy in console. Consider opting in to the future flags."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_arena_backend.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional: enable react-router v7 future flags to silence console warnings.",
+    "Optional: consider raising or documenting the login rate limit (10/60s per IP) as tests can trip it easily when running in tight loops."
+  ],
+  "critical_code_review_comments": [
+    "server.py uses deprecated FastAPI @app.on_event('startup'/'shutdown') — migrate to lifespan context manager.",
+    "billing.py uses stripe.error.InvalidRequestError / SignatureVerificationError — these are deprecated aliases in recent stripe SDK; prefer stripe.InvalidRequestError to avoid future breakage.",
+    "Course attempts are created anonymously by GET /api/courses/{id}/start with no auth or rate-limit — a scraper could inflate the course_attempts collection. Consider a per-IP rate limit and TTL on unclaimed attempts.",
+    "keys.KeyBody has min_length=8 but no upper limit sanity check on characters — non-issue but PRoviders like tavily could match a 'tvly-' prefix pattern client-side to catch typos before storing."
+  ],
+  "updated_files": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_arena_backend.py"
+  ],
+  "success_rate": {"backend": "100% (35/35)", "frontend": "100% of tested flows"},
+  "test_credentials": "admin@steps.dev / ArenaAdmin!2026 (pro admin); pro@steps.dev / ProCrab!2026 (pro); free@steps.dev / FreeCrab!2026 (free). Newly registered users get NO platform fallback.",
+  "seed_data_creation": "Some TEST_-prefixed users, crabs and challenges were created during tests. TEST_ prefix marks them for future cleanup. Also a Stripe test checkout session was initiated (payment not completed).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend tests: `cd /app/backend && pytest tests/test_arena_backend.py -v`. The `_login` fixture retries once after backoff on 429 because the login endpoint is IP rate-limited to 10/60s. If you run the whole suite twice back-to-back, add a ~60s sleep between runs or expect one retry. Real /api/runs live runs against obstacle-1 were NOT executed to save LLM credits and time (~40-90s each); they are only smoke-checked via 412/401/402 paths. Champion replays already exist for public /replays endpoint verification.",
+  "rca of the issue": "No blocking bug. Only two initial pytest failures were: (1) `test_adapters` assertion used old nested `status` shape; adapters return flat {available,message} — fixed the assertion; (2) `test_lockout_after_5_failures` flaked when previous tests exhausted the 10/60s IP-login rate limit — added a 62s backoff retry in `_login`."
+}

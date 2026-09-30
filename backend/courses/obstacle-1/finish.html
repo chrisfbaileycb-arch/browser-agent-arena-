@@ -1,0 +1,29 @@
+<style>
+  .flagpole { height: 140px; width: 8px; background: #4f3216; margin: 10px 0 0 30px; position: relative; }
+  .flagpole i { position: absolute; left: 8px; top: 96px; width: 90px; height: 44px; background: #d9432b; transition: top .8s ease; }
+  .raised .flagpole i { top: 0; }
+  #result { margin-top: 16px; padding: 16px; border: 3px solid #2f6b2f; background: #eef7e8; }
+  #finish-code { font-family: monospace; font-size: 32px; letter-spacing: .08em; }
+</style>
+<section class="board" id="finish-board">
+  <div class="station-tag">Station 7 · Finish</div>
+  <h1>The Finish Flag</h1>
+  <p>You reached the finish. Raise the flag to receive your success code from the course marshal.</p>
+  <div class="flagpole"><i></i></div>
+  <div class="row"><button id="raise-flag" class="btn go" type="button">Raise the flag</button></div>
+  <div id="result" hidden><p>Course cleared. Success code:</p><div id="finish-code"></div><p id="finish-note">Report this code exactly to be scored.</p></div>
+</section>
+<script>
+(function () {
+  var show = function (code) {
+    document.getElementById("finish-code").textContent = code;
+    document.getElementById("result").hidden = false;
+    document.getElementById("finish-board").classList.add("raised");
+    document.getElementById("raise-flag").disabled = true;
+  };
+  if (Course.cfg.code) show(Course.cfg.code);
+  document.getElementById("raise-flag").addEventListener("click", function () {
+    Course.clear().then(function (d) { if (d && d.code) show(d.code); });
+  });
+})();
+</script>

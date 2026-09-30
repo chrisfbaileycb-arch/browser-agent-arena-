@@ -1,0 +1,27 @@
+<style>
+  .plaque { border: 3px double #4f3216; background: #f3e6c8; padding: 12px 16px; margin: 10px 0 16px; font-size: 17px; }
+  .decoy-cta { display: block; width: 100%; background: #1f9d55; color: #fff; font-size: 22px; padding: 18px; border: 0; border-radius: 8px; margin-bottom: 18px; box-shadow: 0 5px 0 #136b39; }
+  .doors { display: flex; gap: 14px; }
+  .door { flex: 1; background: #7b4a2a; color: #fff5e6; border: 4px solid #3d2414; border-radius: 48px 48px 4px 4px; height: 130px; font-size: 16px; }
+</style>
+<section class="board">
+  <div class="station-tag">Station 3 · Decoy Doors</div>
+  <h1>The Decoy Doors</h1>
+  <div class="plaque">Plaque: “Only the door carved with the word <b id="pass"></b> is real. Every other exit is a trap.”</div>
+  <button class="decoy-cta" id="door-continue" type="button">Continue &#9654;</button>
+  <div class="doors" id="doors"></div>
+</section>
+<script>
+(function () {
+  var sets = [["BRINE", "BRINK", "BRINY"], ["CORAL", "CORRAL", "CAROL"], ["TIDAL", "TIDEL", "TITAL"], ["KELP", "KEEP", "HELP"]];
+  var set = sets[Math.floor(Math.random() * sets.length)], pass = set[0];
+  document.getElementById("pass").textContent = pass;
+  document.getElementById("door-continue").addEventListener("click", function () { Course.decoy("The big Continue button is a painted-on door."); });
+  set.slice().sort(function () { return Math.random() - 0.5; }).forEach(function (word) {
+    var d = document.createElement("button");
+    d.type = "button"; d.className = "door"; d.textContent = "Door: " + word;
+    d.addEventListener("click", function () { if (word === pass) Course.clear(); else Course.decoy("Door " + word + " was fake."); });
+    document.getElementById("doors").appendChild(d);
+  });
+})();
+</script>

@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 2 covers the new champion computer-use adapters (Claude / OpenAI / Gemini), the OwnEndpoint webhook agent, the /api/endpoint CRUD, the run-reactive 3D crab moods and the arena/keys UI. Backend pytest suite grew from 35 -> 46 tests, all 46 pass (100%). Playwright pass covered login (pro), 4 champion adapter cards + 3D canvases on Home/Builder/Arena, BYOK 412 error surfaced in arena-error, endpoint card connect/rotate/error/disconnect flow with data-testids matching the spec, and champion replay track-crab data-mood transitions (celebrate at last step, snap when stepping back through a click step). No page errors, no shader compile errors. No blocking bugs.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "WebGL console", "issues": ["Chromium warns 'GPU stall due to ReadPixels' four times from the react-three-fiber canvases. Cosmetic performance warning, not an error; consider using dpr={1} or a lighter shot pipeline if profiling shows jank."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_arena_backend.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "endpoints.EndpointBody uses pattern=r'^https://' plus a downstream safety.request_blocked check — good. But the second PUT re-uses the same URL and skips the safety check only implicitly (still runs it). If a previously-saved endpoint DNS starts resolving to a private IP later, saving the same URL again will 422 and lose the record via the update path — non-issue for now.",
+    "adapters/computer_use.OwnEndpoint uses `session.remaining()` as httpx timeout with no lower bound clamp beyond max(remaining,1.0). If remaining is negative, max(...) still returns 1.0 — fine. Consider adding a soft cap so a long-running endpoint does not consume the whole run budget in one call.",
+    "server.py adapters ordering ensures 402 (Pro plan) is checked before BYOK — correct. But is_pro also lets a free user reach the crab (custom-tier) path; verified 402 already gates champions.",
+    "Model env vars CLAUDE_CU_MODEL/OPENAI_CU_MODEL/GEMINI_CU_MODEL are referenced as os.environ[...] via property — if any env var is unset the /adapters listing raises 500. Consider .get with a fallback string to keep the endpoint resilient."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_arena_backend.py"
+  ],
+  "success_rate": {"backend": "100% (46/46)", "frontend": "100% of tested flows"},
+  "test_credentials": "admin@steps.dev / ArenaAdmin!2026; pro@steps.dev / ProCrab!2026; free@steps.dev / FreeCrab!2026",
+  "seed_data_creation": "Test suite created a few TEST_-prefixed users/crabs/challenges plus one transient agent_endpoints doc for pro@steps.dev (cleaned up in tests). The pro user briefly saved a fake anthropic key and it was DELETEd in the finally block.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: `cd /app/backend && pytest tests/test_arena_backend.py -v`. Live champion CU runs cannot succeed here (no real Anthropic/OpenAI/Gemini key with computer-use access); the fake-key test asserts the run finishes with status=failed and error mentions 'Anthropic ... 401'. The own_endpoint test uses https://httpbin.org/post which will echo back JSON with no 'answer' -> agent_gave_up. Both require ~40-90s each so keep suite runtime in mind. Login endpoint is still IP-rate-limited to 10/60s.",
+  "rca of the issue": "N/A — no regressions. Only test-side change: previous test_adapters asserted CU adapters were unavailable; per iteration_2 spec they are now available=true. Rewrote the assertion to require 5 adapters, all available, provider+model on the 3 CU adapters, look{color,accent,accessory} on CU + own_endpoint."
+}

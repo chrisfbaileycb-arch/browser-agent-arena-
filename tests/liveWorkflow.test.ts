@@ -1,3 +1,4 @@
+process.env.ALLOW_FIXTURE_CORPUS = "true";
 import { describe, expect, it } from "vitest";
 import { synthesize } from "../src/core/synthesizer";
 import { runLiveWorkflow, type LiveConfig } from "../server/liveWorkflow";

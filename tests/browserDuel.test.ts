@@ -42,4 +42,37 @@ describe("live browser duel", () => {
   it("requires provider keys before opening a browser", async () => {
     await expect(runBrowserDuel({ ...ECOM_CHALLENGE, url: "https://shop.example" }, { geminiKey: "", jevKey: "" })).rejects.toThrow("GEMINI_API_KEY");
   });
+
+  it("supports OpenAI key for Lane A in Arena competition duel", async () => {
+    const fakeBrowser = browser();
+    const launchBrowser = async () => ({ ...fakeBrowser, newContext: async () => fakeBrowser.newContext() }) as Browser;
+    const urlsCalled: string[] = [];
+    const fetcher: typeof fetch = async (input, init) => {
+      const url = String(input);
+      urlsCalled.push(url);
+      if (url.includes("api.openai.com")) {
+        const body = JSON.parse(String(init?.body)) as { messages: Array<{ content: string }> };
+        const userMsg = body.messages[1]?.content || "";
+        const output = userMsg.includes("Extract a JSON object")
+          ? { payload: { sku: "NX-428", currency: "USD", price: 428 }, evidence: "Observed SKU NX-428 at USD 428" }
+          : { action: "done", reason: "The visible price is enough" };
+        return Response.json({ choices: [{ message: { content: JSON.stringify(output) } }], usage: { prompt_tokens: 42 } });
+      }
+      if (url.includes("generateContent")) {
+        const prompt = JSON.parse(String(init?.body)).contents[0].parts[0].text as string;
+        const output = prompt.includes("Extract a JSON object")
+          ? { payload: { sku: "NX-428", currency: "USD", price: 428 }, evidence: "Observed SKU NX-428 at USD 428" }
+          : prompt.includes("Gatekeeper")
+          ? { choice: "proceed", score: 0.9, noul: 0.95 }
+          : { action: "done", reason: "The visible price is enough" };
+        return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(output) }] } }], usageMetadata: { promptTokenCount: 37 } });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    };
+    const challenge = { ...ECOM_CHALLENGE, url: "https://shop.example/widget-nx", cleanPayload: { sku: "fabricated", currency: "USD", price: 999 }, assertions: [{ field: "price", operator: "equals" as const, value: "428" }] };
+    const result = await runBrowserDuel(challenge, { geminiKey: "gemini-key", openaiKey: "openai-key", fetcher, launchBrowser });
+    expect(result.lanes.every(lane => lane.success)).toBe(true);
+    expect(urlsCalled.some(u => u.includes("api.openai.com"))).toBe(true);
+    expect(urlsCalled.some(u => u.includes("generateContent"))).toBe(true);
+  });
 });

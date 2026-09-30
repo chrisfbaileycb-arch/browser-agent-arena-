@@ -1,10 +1,10 @@
 import type { MindId } from "../types";
 
 const palette: Record<MindId, { dark: string; light: string; glow: string }> = {
-  scout: { dark: "#9A3412", light: "#FDBA74", glow: "#FFEDD5" },
-  extractor: { dark: "#5B21B6", light: "#C4B5FD", glow: "#EDE9FE" },
-  gatekeeper: { dark: "#047857", light: "#6EE7B7", glow: "#D1FAE5" },
-  settlement: { dark: "#BE123C", light: "#FDA4AF", glow: "#FFE4E6" },
+  scout: { dark: "#D97706", light: "#FFE135", glow: "#FEF08A" },
+  extractor: { dark: "#7C3AED", light: "#C084FC", glow: "#EDE9FE" },
+  gatekeeper: { dark: "#059669", light: "#34D399", glow: "#D1FAE5" },
+  settlement: { dark: "#E11D48", light: "#FB7185", glow: "#FFE4E6" },
 };
 
 /** Original geometric squad portraits. No third-party art or assets are used. */

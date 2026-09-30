@@ -1,0 +1,8 @@
+{
+  "name": "NexusRelay",
+  "description": "Browser agent arena and specialist squad workflow playground with live research, extraction, and validation duels.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

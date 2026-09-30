@@ -55,6 +55,26 @@ describe("live workflow", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("runs successfully with Gemini alone without Tavily or Jev keys", async () => {
+    const calls: string[] = [];
+    const fetcher: typeof fetch = async (input, init) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.includes("generateContent")) {
+        const prompt = JSON.parse(String(init?.body)).contents[0].parts[0].text as string;
+        if (prompt.includes("Gatekeeper")) {
+          return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ route: "proceed", score: 0.95, noul: 1.0 }) }] } }] });
+        }
+        return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ payload: { sku: "NX-428", currency: "USD", price: 428 }, citations: ["https://vendor-a.example/pricing"], evidence: "Pricing confirmed" }) }] } }] });
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    };
+    const result = await runLiveWorkflow(synthesize("Track Widget NX street price"), { geminiKey: "gemini-only-test", fetcher }, false);
+    expect(result.ok).toBe(true);
+    expect(result.payload.price).toBe(428);
+    expect(calls.every(c => c.includes("generateContent"))).toBe(true);
+  });
+
   it("reports a failed destination response instead of claiming delivery", async () => {
     const { config } = provider(503);
     const result = await runLiveWorkflow(synthesize("Track Widget NX street price"), config, true);

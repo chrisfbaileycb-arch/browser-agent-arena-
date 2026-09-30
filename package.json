@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "predev": "node scripts/generate-project-manifest.mjs",
-    "dev": "vite",
+    "dev": "tsx server.ts",
     "prebuild": "node scripts/generate-project-manifest.mjs",
     "build": "tsc --noEmit && vite build",
+    "lint": "tsc --noEmit",
+    "start": "node --import tsx server.ts",
     "preview": "vite preview",
     "pretest": "node scripts/generate-project-manifest.mjs",
     "test": "vitest run",
@@ -15,12 +17,15 @@
     "server": "node --env-file-if-exists=.env --import tsx server/vesselServer.ts"
   },
   "dependencies": {
+    "express": "^5.2.1",
     "jszip": "^3.10.1",
+    "lucide-react": "^1.49.0",
     "playwright": "^1.62.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^26.6.3",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

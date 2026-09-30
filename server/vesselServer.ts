@@ -8,7 +8,14 @@ const port = Number(process.env.PORT || 8787);
 createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/api/workflow/status") {
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ tavily: Boolean(process.env.TAVILY_API_KEY), gemini: Boolean(process.env.GEMINI_API_KEY), jev: Boolean(process.env.TYPESAFE_API_KEY), destinations: (["price", "news", "compliance", "lead", "vat", "outage", "leak", "rfp"] as Intent[]).filter(intent => Boolean(process.env[`WORKFLOW_WEBHOOK_URL_${intent.toUpperCase()}`])) }));
+    res.end(JSON.stringify({
+      gemini: Boolean(process.env.GEMINI_API_KEY),
+      openai: Boolean(process.env.OPENAI_API_KEY),
+      firebase: Boolean(process.env.FIREBASE_API_KEY || process.env.FIREBASE_PROJECT_ID),
+      tavily: Boolean(process.env.TAVILY_API_KEY),
+      jev: Boolean(process.env.TYPESAFE_API_KEY),
+      destinations: (["price", "news", "compliance", "lead", "vat", "outage", "leak", "rfp"] as Intent[]).filter(intent => Boolean(process.env[`WORKFLOW_WEBHOOK_URL_${intent.toUpperCase()}`]))
+    }));
     return;
   }
   if (req.method === "POST" && req.url === "/api/workflow/live") {
@@ -44,7 +51,13 @@ createServer(async (req, res) => {
       }
       const body = JSON.parse(Buffer.concat(chunks).toString() || "{}") as { challenge?: ArenaChallenge };
       if (!body.challenge || typeof body.challenge.url !== "string" || !Array.isArray(body.challenge.nodes) || !body.challenge.schema) throw new Error("A complete browser challenge is required.");
-      const result = await runBrowserDuel(body.challenge, { geminiKey: process.env.GEMINI_API_KEY || "", jevKey: process.env.TYPESAFE_API_KEY || "", geminiModel: process.env.GEMINI_MODEL });
+      const result = await runBrowserDuel(body.challenge, {
+        geminiKey: process.env.GEMINI_API_KEY || "",
+        openaiKey: process.env.OPENAI_API_KEY || "",
+        jevKey: process.env.TYPESAFE_API_KEY || "",
+        geminiModel: process.env.GEMINI_MODEL,
+        openaiModel: process.env.OPENAI_MODEL,
+      });
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify(result));
     } catch (error) {

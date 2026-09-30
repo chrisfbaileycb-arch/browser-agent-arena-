@@ -3,9 +3,15 @@ import path from "node:path";
 
 const root = process.cwd();
 const excluded = new Set(["node_modules", "dist", ".git", "coverage", "generated"]);
-const topFiles = ["package.json", "package-lock.json", "vite.config.ts", "vitest.config.ts", "tsconfig.json", "tsconfig.node.json", "tailwind.config.js", "postcss.config.js", "index.html", ".env.example", ".gitignore", "README.md"];
+const topFiles = ["package.json", "package-lock.json", "server.ts", "vite.config.ts", "vitest.config.ts", "tsconfig.json", "tsconfig.node.json", "tailwind.config.js", "postcss.config.js", "index.html", ".env.example", ".gitignore", "README.md", "metadata.json"];
 const files = {};
-for (const filename of topFiles) files[filename] = await readFile(path.join(root, filename), "utf8");
+for (const filename of topFiles) {
+  try {
+    files[filename] = await readFile(path.join(root, filename), "utf8");
+  } catch (err) {
+    if (err && err.code !== "ENOENT") throw err;
+  }
+}
 async function walk(relative) {
   for (const entry of await readdir(path.join(root, relative), { withFileTypes: true })) {
     if (excluded.has(entry.name)) continue;

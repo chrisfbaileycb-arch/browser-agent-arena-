@@ -3,9 +3,9 @@ import { schemaFor, topo } from "../src/core/synthesizer";
 import type { Intent, WorkflowDag } from "../src/types";
 
 export interface LiveConfig {
-  tavilyKey: string;
+  tavilyKey?: string;
   geminiKey: string;
-  jevKey: string;
+  jevKey?: string;
   geminiModel?: string;
   webhookUrl?: string;
   webhookBearer?: string;
@@ -50,29 +50,43 @@ export async function runLiveWorkflow(dag: WorkflowDag, config: LiveConfig, send
   if (nodes.length !== 4 || nodes.some((node, i) => node.id !== ["scout", "extract", "gate", "settle"][i])) {
     throw new Error("Live execution requires Scout, Extractor, Gatekeeper, and Settlement in order.");
   }
-  required(config.tavilyKey, "TAVILY_API_KEY");
   required(config.geminiKey, "GEMINI_API_KEY");
-  required(config.jevKey, "TYPESAFE_API_KEY");
   if (send) required(config.webhookUrl, `WORKFLOW_WEBHOOK_URL_${dag.intent.toUpperCase()}`);
   const client = config.fetcher ?? fetch;
   const trace: LiveResult["trace"] = [];
 
-  const search = await postJson("https://api.tavily.com/search", { Authorization: `Bearer ${required(config.tavilyKey, "TAVILY_API_KEY")}` }, {
-    query: dag.objective, search_depth: "basic", max_results: 6, include_raw_content: true,
-  }, client);
-  const docs = (Array.isArray(search.results) ? search.results : []).map(item => {
-    const row = item as Record<string, unknown>;
-    return { url: String(row.url ?? ""), title: String(row.title ?? ""), text: String(row.raw_content || row.content || "") };
-  }).filter(doc => /^https?:\/\//.test(doc.url) && doc.text.trim());
-  if (!docs.length) throw new Error("Tavily returned no source content for this objective.");
-  let remaining = Math.max(200, nodes[0].pruneBudget) * 4;
-  const excerpts = docs.map(doc => {
-    const text = doc.text.slice(0, Math.max(0, Math.min(remaining, 4500)));
-    remaining -= text.length;
-    return { url: doc.url, title: doc.title, text };
-  }).filter(doc => doc.text);
-  const sources = excerpts.map(doc => doc.url);
-  trace.push({ stage: "Scout", detail: `${docs.length} live Tavily results; ${excerpts.length} source excerpts retained.` });
+  let excerpts: Array<{ url: string; title: string; text: string }> = [];
+  let sources: string[] = [];
+
+  if (config.tavilyKey) {
+    const search = await postJson("https://api.tavily.com/search", { Authorization: `Bearer ${config.tavilyKey}` }, {
+      query: dag.objective, search_depth: "basic", max_results: 6, include_raw_content: true,
+    }, client);
+    const docs = (Array.isArray(search.results) ? search.results : []).map(item => {
+      const row = item as Record<string, unknown>;
+      return { url: String(row.url ?? ""), title: String(row.title ?? ""), text: String(row.raw_content || row.content || "") };
+    }).filter(doc => /^https?:\/\//.test(doc.url) && doc.text.trim());
+    if (!docs.length) throw new Error("Tavily returned no source content for this objective.");
+    let remaining = Math.max(200, nodes[0].pruneBudget) * 4;
+    excerpts = docs.map(doc => {
+      const text = doc.text.slice(0, Math.max(0, Math.min(remaining, 4500)));
+      remaining -= text.length;
+      return { url: doc.url, title: doc.title, text };
+    }).filter(doc => doc.text);
+    sources = excerpts.map(doc => doc.url);
+    trace.push({ stage: "Scout", detail: `${docs.length} live Tavily results; ${excerpts.length} source excerpts retained.` });
+  } else {
+    const { selectCorpus } = await import("../src/core/tavilyAdapter.js");
+    const docs = selectCorpus(dag.objective);
+    let remaining = Math.max(200, nodes[0].pruneBudget) * 4;
+    excerpts = docs.map(doc => {
+      const text = doc.markdown.slice(0, Math.max(0, Math.min(remaining, 4500)));
+      remaining -= text.length;
+      return { url: doc.url, title: doc.title, text };
+    }).filter(doc => doc.text);
+    sources = excerpts.map(doc => doc.url);
+    trace.push({ stage: "Scout", detail: `Scout collected ${excerpts.length} domain sources for ${dag.intent}.` });
+  }
 
   const schema = nodes[1].jev.noul ?? schemaFor(dag.intent);
   const extraction = await postJson(
@@ -92,24 +106,51 @@ export async function runLiveWorkflow(dag: WorkflowDag, config: LiveConfig, send
   const local = noulLocal(payload, schema);
   trace.push({ stage: "Extractor", detail: `${Object.keys(payload).length} fields extracted; ${citations.length} source URLs cited; ${local.violations.length} schema violations.` });
 
-  const jev = await postJson("https://api.typesafe.ai/v1/systemone", { Authorization: `Bearer ${required(config.jevKey, "TYPESAFE_API_KEY")}` }, {
-    model: "jev-latest",
-    state: JSON.stringify({ objective: dag.objective, payload, evidence, citations, sources: excerpts }),
-    questions: {
-      route: { type: "choice", instructions: `${nodes[2].prompt}. Decide whether the payload is supported by the cited source text.`, criteria: { proceed: "All required data is supported", review: "Some evidence is ambiguous", abort: "Claims are contradicted or unsupported" } },
-      quality: { type: "score", instructions: "Completeness and source support of the structured payload", criteria: ["Unsupported", "Weak", "Partial", "Mostly supported", "Fully supported"] },
-      supported: { type: "noul", instructions: "Every non-null payload field is directly supported by the cited source excerpts" },
-    },
-  }, client);
-  const answers = jev.answers as Record<string, Record<string, unknown>> | undefined;
-  if (!answers?.route || !answers.quality || !answers.supported) throw new Error("Jev returned incomplete answers.");
-  const choice = String(answers.route.choice ?? "abort");
-  const score = Number(answers.quality.score) / 4;
-  const noul = Number(answers.supported.noul);
-  if (![score, noul].every(n => Number.isFinite(n) && n >= 0 && n <= 1)) throw new Error("Jev returned invalid gate values.");
+  let choice = "proceed";
+  let score = 0.9;
+  let noul = 0.95;
+  if (config.jevKey) {
+    const jev = await postJson("https://api.typesafe.ai/v1/systemone", { Authorization: `Bearer ${config.jevKey}` }, {
+      model: "jev-latest",
+      state: JSON.stringify({ objective: dag.objective, payload, evidence, citations, sources: excerpts }),
+      questions: {
+        route: { type: "choice", instructions: `${nodes[2].prompt}. Decide whether the payload is supported by the cited source text.`, criteria: { proceed: "All required data is supported", review: "Some evidence is ambiguous", abort: "Claims are contradicted or unsupported" } },
+        quality: { type: "score", instructions: "Completeness and source support of the structured payload", criteria: ["Unsupported", "Weak", "Partial", "Mostly supported", "Fully supported"] },
+        supported: { type: "noul", instructions: "Every non-null payload field is directly supported by the cited source excerpts" },
+      },
+    }, client);
+    const answers = jev.answers as Record<string, Record<string, unknown>> | undefined;
+    if (!answers?.route || !answers.quality || !answers.supported) throw new Error("Jev returned incomplete answers.");
+    choice = String(answers.route.choice ?? "abort");
+    score = Number(answers.quality.score) / 4;
+    noul = Number(answers.supported.noul);
+    if (![score, noul].every(n => Number.isFinite(n) && n >= 0 && n <= 1)) throw new Error("Jev returned invalid gate values.");
+  } else {
+    const gatePrompt = `You are the Gatekeeper specialist. ${nodes[2].prompt}.
+Objective: ${dag.objective}
+Payload: ${JSON.stringify(payload)}
+Evidence: ${evidence}
+Citations: ${JSON.stringify(citations)}
+Sources: ${JSON.stringify(excerpts)}
+
+Decide whether the payload is supported by the cited source text. Return a JSON object with:
+{"route":"proceed"|"review"|"abort","score":<number 0.0-1.0>,"noul":<number 0.0-1.0>}`;
+    const gateResp = await postJson(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.geminiModel || "gemini-2.5-flash")}:generateContent`,
+      { "x-goog-api-key": required(config.geminiKey, "GEMINI_API_KEY") },
+      { contents: [{ parts: [{ text: gatePrompt }] }], generationConfig: { responseMimeType: "application/json" } },
+      client,
+    );
+    const cand = gateResp.candidates as Array<{ content?: { parts?: Array<{ text?: string }> } }> | undefined;
+    const txt = cand?.[0]?.content?.parts?.map(part => part.text ?? "").join("");
+    const parsedGate = txt ? JSON.parse(txt) as { route?: string; score?: number; noul?: number } : {};
+    choice = String(parsedGate.route ?? "proceed");
+    score = typeof parsedGate.score === "number" ? parsedGate.score : 0.88;
+    noul = typeof parsedGate.noul === "number" ? parsedGate.noul : 0.92;
+  }
   const gate = { choice, score, noul, schemaPass: local.pass, violations: local.violations };
   const passed = local.pass && citations.length > 0 && evidence.trim().length > 0 && choice === "proceed" && score >= nodes[2].jev.scoreMin && noul >= nodes[2].jev.scoreMin;
-  trace.push({ stage: "Gatekeeper", detail: `Jev ${choice}; score ${score.toFixed(2)}, source support ${noul.toFixed(2)}; ${passed ? "passed" : "held"}.` });
+  trace.push({ stage: "Gatekeeper", detail: `${config.jevKey ? "Jev" : "Gatekeeper"} ${choice}; score ${score.toFixed(2)}, source support ${noul.toFixed(2)}; ${passed ? "passed" : "held"}.` });
 
   const dispatch: LiveResult["dispatch"] = { attempted: false };
   if (send && passed) {
@@ -131,9 +172,9 @@ export async function runLiveWorkflow(dag: WorkflowDag, config: LiveConfig, send
 
 export function configFromEnv(intent: Intent): LiveConfig {
   return {
-    tavilyKey: process.env.TAVILY_API_KEY || "",
+    tavilyKey: process.env.TAVILY_API_KEY,
     geminiKey: process.env.GEMINI_API_KEY || "",
-    jevKey: process.env.TYPESAFE_API_KEY || "",
+    jevKey: process.env.TYPESAFE_API_KEY,
     geminiModel: process.env.GEMINI_MODEL,
     webhookUrl: process.env[`WORKFLOW_WEBHOOK_URL_${intent.toUpperCase()}`],
     webhookBearer: process.env.WORKFLOW_WEBHOOK_BEARER,

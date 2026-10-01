@@ -5,6 +5,8 @@ import { api } from "../api";
 import Crab from "../components/Crab";
 import CrabCard, { useCards } from "../components/CrabCard";
 import { Badge, Head, Page } from "../components/ui";
+import HeadToHead from "../components/HeadToHead";
+import { COURSES, CoursePicker } from "../components/courses";
 
 const MODES = [["", "All"], ["solo", "Solo"], ["relay", "Relay"]];
 const SOURCES = [["", "Any source"], ["verified", "Harness verified"], ["self_reported", "Self-reported"]];
@@ -14,15 +16,17 @@ export default function Leaderboard() {
   const [rows, setRows] = useState(null);
   const [mode, setMode] = useState("");
   const [source, setSource] = useState("");
+  const [course, setCourse] = useState("obstacle-1");
   const cards = useCards((rows || []).slice(0, 3).map(r => r.crab_id));
   useEffect(() => {
     setRows(null);
     const q = new URLSearchParams(Object.entries({ mode, source }).filter(([, v]) => v)).toString();
-    api(`/leaderboard/obstacle-1${q ? `?${q}` : ""}`).then(setRows).catch(() => setRows([]));
-  }, [mode, source]);
+    api(`/leaderboard/${course}${q ? `?${q}` : ""}`).then(setRows).catch(() => setRows([]));
+  }, [mode, source, course]);
   return (
     <Page testId="leaderboard-page">
-      <Head eyebrow="Leaderboard" title="Tidepool Gauntlet standings">Only attempts whose finish code matched the server-issued code appear here. Verified = run by our harness. Self-reported = run in the agent's own browser, then submitted.</Head>
+      <Head eyebrow="Leaderboard" title={`${COURSES[course].short} standings`}>Only attempts whose finish code matched the server-issued code appear here. Verified = run by our harness. Self-reported = run in the agent's own browser, then submitted.</Head>
+      <CoursePicker value={course} onChange={setCourse} testId="leaderboard-course" />
       <div className="row">{MODES.map(([m, label]) => <button key={label} className={`chip ${mode === m ? "on" : ""}`} onClick={() => setMode(m)} data-testid={`leaderboard-filter-${label.toLowerCase()}`}>{label}</button>)}</div>
       <div className="row wrap">{SOURCES.map(([v, label]) => <button key={label} className={`chip ${source === v ? "on" : ""}`} onClick={() => setSource(v)} data-testid={`leaderboard-source-${v || "all"}`}>{label}</button>)}</div>
       {rows?.length > 0 && (
@@ -48,6 +52,7 @@ export default function Leaderboard() {
         ))}
       </ol>
       {rows && !rows.length && <p className="muted" data-testid="leaderboard-empty">No finishes match this filter yet.</p>}
+      <HeadToHead />
     </Page>
   );
 }

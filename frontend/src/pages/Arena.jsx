@@ -8,6 +8,7 @@ import Broadcast from "../components/Broadcast";
 import SquadCard from "../components/SquadCard";
 import TournamentPanel from "../components/Tournament";
 import SelfReport from "../components/SelfReport";
+import { COURSES, CoursePicker } from "../components/courses";
 import { Btn, Card, Head, Notice, Page } from "../components/ui";
 
 export default function Arena() {
@@ -22,25 +23,28 @@ export default function Arena() {
   const [busy, setBusy] = useState(false);
   const [champions, setChampions] = useState([]);
   const [preset, setPreset] = useState([]);
+  const [course, setCourse] = useState("obstacle-1");
   const startRelay = async opponent => {
-    const ids = [(await post("/runs", { course_id: "obstacle-1", adapter: "relay" })).id];
-    if (opponent) ids.push((await post("/runs", { course_id: "obstacle-1", crab_id: opponent, adapter: "crab" })).id);
+    const ids = [(await post("/runs", { course_id: course, adapter: "relay" })).id];
+    if (opponent) ids.push((await post("/runs", { course_id: course, crab_id: opponent, adapter: "crab" })).id);
     setRuns(ids);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   useEffect(() => {
     api("/adapters").then(setAdapters).catch(() => {});
     api("/champions").then(setChampions).catch(() => {});
-    api("/replays?course_id=obstacle-1").then(r => { setReplays(r); setWatch(w => w || r[0]?.id); }).catch(() => {});
     if (user) api("/crabs").then(setCrabs).catch(() => {});
   }, [user]);
+  useEffect(() => {
+    api(`/replays?course_id=${course}`).then(r => { setReplays(r); setWatch(r[0]?.id || null); }).catch(() => {});
+  }, [course]);
   const toggle = id => setPicked(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id].slice(-2));
   const start = async () => {
     setBusy(true); setError("");
     try {
       const ids = [];
       for (const id of picked) {
-        const body = id.startsWith("adapter:") ? { course_id: "obstacle-1", adapter: id.slice(8) } : { course_id: "obstacle-1", crab_id: id, adapter: "crab" };
+        const body = id.startsWith("adapter:") ? { course_id: course, adapter: id.slice(8) } : { course_id: course, crab_id: id, adapter: "crab" };
         ids.push((await post("/runs", body)).id);
       }
       setRuns(ids);
@@ -48,7 +52,8 @@ export default function Arena() {
   };
   return (
     <Page testId="arena-page">
-      <Head eyebrow="Arena" title="Duel on the Tidepool Gauntlet">Pick up to two of your crabs. Each runs in its own real Chromium browser, with your own keys, on a fresh attempt with its own finish code.</Head>
+      <Head eyebrow="Arena" title={`Duel on the ${COURSES[course].short}`}>Pick a course and up to two competitors. Each runs in its own real Chromium browser, with your own keys, on a fresh attempt with its own finish code.</Head>
+      <CoursePicker value={course} onChange={setCourse} testId="arena-course" />
       {runs.length > 0 ? (
         <section className="stack">
           <div className="row"><Btn kind="ghost" onClick={() => setRuns([])} testId="new-duel-btn">New duel</Btn></div>
@@ -84,15 +89,15 @@ export default function Arena() {
             <Notice kind="error" testId="arena-error">{error}</Notice>
             <Btn onClick={start} disabled={!picked.length || busy} testId="start-duel-btn">{busy ? "Launching…" : picked.length > 1 ? "Start duel" : "Start run"}</Btn>
           </Card>
-          <SelfReport />
+          <SelfReport courseId={course} />
         </div>
       )}
       {user && (
         <>
-          <SquadCard crabs={crabs} champions={champions} onRelay={startRelay}
+          <SquadCard crabs={crabs} champions={champions} onRelay={startRelay} courseId={course}
             onEnter={ids => { setPreset(ids); document.getElementById("tournament")?.scrollIntoView({ behavior: "smooth" }); }} />
           <div id="tournament">
-            <TournamentPanel crabs={crabs} champions={champions} adapters={adapters} preset={preset}
+            <TournamentPanel crabs={crabs} champions={champions} adapters={adapters} preset={preset} courseId={course}
               onWatch={ids => { setRuns(ids.filter(Boolean)); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
           </div>
         </>

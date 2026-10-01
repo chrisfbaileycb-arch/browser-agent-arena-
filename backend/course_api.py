@@ -29,7 +29,7 @@ async def list_courses():
 async def course_entry(course_id: str):
     if not course_exists(course_id):
         raise HTTPException(404, "Course not found")
-    return RedirectResponse(f"/api/courses/{course_id}/start", status_code=302)
+    return RedirectResponse(f"/api/courses/{course_id}/{station_ids(course_id)[0]}", status_code=302)
 
 
 @router.get("/courses/{course_id}/{station}", response_class=HTMLResponse)
@@ -43,10 +43,10 @@ async def course_station(course_id: str, station: str, a: str = ""):
             attempt = await create_attempt(db, course_id, "anonymous")
             return RedirectResponse(f"/api/courses/{course_id}/{station}?a={attempt.id}", status_code=302)
         return HTMLResponse(render_notice(course_id, "No valid attempt", "Every run starts at the start line.",
-                                          f"/api/courses/{course_id}/start", "Go to the start line"), headers=NO_STORE)
+                                          f"/api/courses/{course_id}/{station_ids(course_id)[0]}", "Go to the start line"), headers=NO_STORE)
     if is_expired(attempt):
         return HTMLResponse(render_notice(course_id, "Attempt expired", "This attempt link expired before reaching the finish flag. Start a new attempt from the Arena.",
-                                          f"/api/courses/{course_id}/start", "Go to the start line"), headers=NO_STORE)
+                                          f"/api/courses/{course_id}/{station_ids(course_id)[0]}", "Go to the start line"), headers=NO_STORE)
     expected = order[len(attempt.cleared)] if len(attempt.cleared) < len(order) else order[-1]
     if station != expected:
         return HTMLResponse(render_notice(course_id, "Out of order", f"Stations must be run in order. This attempt's next station is {expected}.",
@@ -78,7 +78,7 @@ async def attempt_status(attempt_id: str):
 async def attempt_clear(attempt_id: str, body: StationAction, request: Request):
     rate_limit("clear", client_ip(request), 120)
     try:
-        return await clear_station(db, await load_attempt(attempt_id), body.station, body.nonce)
+        return await clear_station(db, await load_attempt(attempt_id), body.station, body.nonce, body.answer)
     except AttemptError as exc:
         raise HTTPException(409, str(exc))
 

@@ -1,16 +1,40 @@
 import { useEffect, useState } from "react";
-import { Copy, Crown, Share2, Trophy } from "lucide-react";
+import { Copy, Crown, Share2, Shield, Trophy } from "lucide-react";
 import { api, del, post } from "../api";
 import CrabCard, { useCards } from "./CrabCard";
 import { Btn, Card, Notice } from "./ui";
+import Crab2D from "./Crab2D";
+import { COURSES, courseOf } from "./courses";
 
 const ROUND_NAMES = { 4: "Round of 8", 2: "Semifinals", 1: "Final" };
-const Crest = ({ e }) => <i className="crest" style={{ background: e?.color || "#3A3360" }} />;
+const Crest = ({ e }) => e?.relay
+  ? <i className="crest squad-crest" title="Squad Relay" style={{ "--c": e.color || "#FFD23F" }}><Shield size={11} /></i>
+  : <i className="crest" style={{ background: e?.color || "#3A3360" }} />;
+
+const MiniSquad = ({ squad = [], testId }) => (
+  <span className="mini-squad" data-testid={testId}>
+    {squad.map((m, i) => <span key={i} title={`${m.role}: ${m.name}`}><Crab2D size={22} color={m.color} accent={m.accent} accessory={m.accessory} /></span>)}
+  </span>
+);
+
+function SquadEntrantCard({ e, testId }) {
+  return (
+    <div className="squad-entrant" data-testid={testId}>
+      <div className="squad-entrant-crest" style={{ "--c": e.color || "#FFD23F" }}><Shield size={34} /><b>SQUAD</b></div>
+      <strong>{e.name}</strong>
+      <div className="squad-entrant-crabs">
+        {(e.squad || []).map((m, i) => (
+          <span key={i}><Crab2D size={44} color={m.color} accent={m.accent} accessory={m.accessory} /><small>{m.role}</small><em>{m.name}</em></span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Match({ m, onWatch, testId }) {
   const row = (e, score, side) => (
     <div className={`m-row ${m.winner && e && m.winner.name === e.name ? "win" : ""}`}>
-      <Crest e={e} /><span>{e ? e.name : "bye"}</span><b>{score ?? (m[`run_${side}`] ? "…" : "")}</b>
+      <Crest e={e} /><span>{e ? e.name : "bye"}{e?.relay && <MiniSquad squad={e.squad} testId={`${testId}-squad-${side}`} />}</span><b>{score ?? (m[`run_${side}`] ? "…" : "")}</b>
     </div>
   );
   return (
@@ -27,8 +51,10 @@ export function Bracket({ t, onWatch }) {
   return (
     <>
     <div className="card-row" data-testid="entrant-cards">
-      {t.entrants.map((e, i) => <CrabCard key={i} crab={e} card={cards[e.crab_id]} size={180} testId={`entrant-card-${i}`} />)}
+      {t.entrants.map((e, i) => e.relay ? <SquadEntrantCard key={i} e={e} testId={`entrant-card-${i}`} />
+        : <CrabCard key={i} crab={e} card={cards[e.crab_id]} size={180} testId={`entrant-card-${i}`} />)}
     </div>
+    <small className="muted" data-testid="bracket-course">Course: {courseOf(t.course_id).short}</small>
     <div className="bracket" data-testid="bracket">
       {t.rounds.map((round, r) => (
         <div className="b-col" key={r}>
@@ -39,7 +65,7 @@ export function Bracket({ t, onWatch }) {
       <div className="b-col">
         <h4>Champion</h4>
         <div className="champion-card" data-testid="champion-card">
-          {t.champion ? <><CrabCard crab={t.champion} card={cards[t.champion.crab_id]} size={190} extra="Tournament champion" testId="champion-crab-card" /><b><Crown size={16} /> {t.champion.name}</b></>
+          {t.champion ? <>{t.champion.relay ? <SquadEntrantCard e={t.champion} testId="champion-crab-card" /> : <CrabCard crab={t.champion} card={cards[t.champion.crab_id]} size={190} extra="Tournament champion" testId="champion-crab-card" />}<b><Crown size={16} /> {t.champion.name}</b></>
             : <><Trophy size={30} /><small>{t.status === "running" ? "Matches in progress…" : t.error || "No champion"}</small></>}
         </div>
       </div>
@@ -73,7 +99,7 @@ function ShareBar({ t, reload }) {
   );
 }
 
-export default function TournamentPanel({ crabs, champions, adapters, preset, onWatch }) {
+export default function TournamentPanel({ crabs, champions, adapters, preset, onWatch, courseId = "obstacle-1" }) {
   const [picked, setPicked] = useState([]);
   const [list, setList] = useState([]);
   const [current, setCurrent] = useState(null);
@@ -82,22 +108,23 @@ export default function TournamentPanel({ crabs, champions, adapters, preset, on
   useEffect(() => { load(); }, []);
   useEffect(() => { if (preset?.length) setPicked(p => [...new Set([...preset, ...p])].slice(0, 8)); }, [preset]);
   useEffect(() => { if (current?.status !== "running") return undefined; const t = setInterval(load, 4000); return () => clearInterval(t); }, [current?.status]);
-  const pool = [...crabs.map(c => ({ key: c.id, label: c.name, color: c.color, body: { crab_id: c.id } })),
+  const pool = [{ key: "relay", label: "Squad Relay (my squad)", color: "#FFD23F", relay: true, body: { relay: true } },
+    ...crabs.map(c => ({ key: c.id, label: c.name, color: c.color, body: { crab_id: c.id } })),
     ...champions.map(c => ({ key: c.id, label: `${c.name} (champion)`, color: c.color, body: { crab_id: c.id } })),
-    ...adapters.filter(a => a.tier === "champion").map(a => ({ key: a.id, label: a.name, color: a.look?.color, body: { adapter: a.id } }))];
+    ...adapters.filter(a => a.tier === "champion" || a.id === "own_endpoint").map(a => ({ key: a.id, label: a.name, color: a.look?.color, body: { adapter: a.id } }))];
   const toggle = k => setPicked(p => p.includes(k) ? p.filter(x => x !== k) : [...p, k].slice(0, 8));
   const start = async () => {
     setError("");
-    try { const t = await post("/tournaments", { name: "Tidepool Cup", entrants: picked.map(k => pool.find(p => p.key === k).body) }); setCurrent(t); load(); }
+    try { const t = await post("/tournaments", { name: courseId === "kelp-2" ? "Kelp Cup" : "Tidepool Cup", course_id: courseId, entrants: picked.map(k => pool.find(p => p.key === k).body) }); setCurrent(t); load(); }
     catch (e) { setError(e.message); }
   };
   return (
     <Card testId="tournament-panel" className="tournament">
-      <div className="row between"><h3><Trophy size={18} /> Arena tournament</h3><small className="muted">Pro · up to 8 entrants · real runs on your keys</small></div>
+      <div className="row between"><h3><Trophy size={18} /> Arena tournament</h3><small className="muted" data-testid="tournament-course">{COURSES[courseId].short} · Pro · up to 8 entrants · real runs on your keys</small></div>
       <div className="row wrap">
         {pool.map(p => (
           <button key={p.key} className={`chip ${picked.includes(p.key) ? "on" : ""}`} onClick={() => toggle(p.key)} data-testid={`entrant-${p.key}`}>
-            <Crest e={{ color: p.color }} /> {p.label}
+            <Crest e={{ color: p.color, relay: p.relay }} /> {p.label}
           </button>
         ))}
       </div>

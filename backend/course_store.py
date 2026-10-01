@@ -6,14 +6,12 @@ from typing import Optional
 from bson import ObjectId
 from bson.errors import InvalidId
 
-from courses import COURSES, station_ids
+from courses import COURSES, expected_answer, station_ids
 from models import CourseAttempt
 from scoring import score_run
 
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 CODE_RE = re.compile(r"SOE-[A-Z0-9]{4}-[A-Z0-9]{4}")
-SUBMIT_MAX_STEPS = 25
-SUBMIT_TIMEOUT_S = 90.0
 
 
 SELF_REPORT_TTL = timedelta(hours=2)
@@ -46,7 +44,7 @@ async def create_attempt(db, course_id: str, agent_label: str, run_id: Optional[
                          agent_kind: Optional[str] = None) -> CourseAttempt:
     expires = (datetime.now(timezone.utc) + SELF_REPORT_TTL).isoformat() if agent_kind else None
     attempt = CourseAttempt(course_id=course_id, agent_label=agent_label, run_id=run_id, user_id=user_id, created_at=now_iso(),
-                            agent_kind=agent_kind, expires_at=expires,
+                            agent_kind=agent_kind, expires_at=expires, seed=secrets.token_hex(8),
                             nonces={s: secrets.token_urlsafe(8) for s in station_ids(course_id)})
     result = await db.course_attempts.insert_one(attempt.to_mongo())
     attempt.id = str(result.inserted_id)
@@ -68,7 +66,7 @@ def public_view(attempt: CourseAttempt) -> dict:
     data.update({"stations_total": len(order), "stations_cleared": len(attempt.cleared), "finished": bool(attempt.code),
                  "expired": is_expired(attempt), "server_elapsed_s": _round(_seconds_between(attempt.started_at, attempt.finished_at)),
                  "next_station": order[len(attempt.cleared)] if len(attempt.cleared) < len(order) else None,
-                 "start_path": f"/api/courses/{attempt.course_id}/start?a={attempt.id}"})
+                 "start_path": f"/api/courses/{attempt.course_id}/{order[0]}?a={attempt.id}"})
     return data
 
 
@@ -85,9 +83,14 @@ def _check(attempt: CourseAttempt, station: str, nonce: str) -> list[str]:
     return order
 
 
-async def clear_station(db, attempt: CourseAttempt, station: str, nonce: str) -> dict:
+async def clear_station(db, attempt: CourseAttempt, station: str, nonce: str, answer: Optional[str] = None) -> dict:
     order = _check(attempt, station, nonce)
     at = now_iso()
+    expected = expected_answer(attempt.course_id, attempt.seed, station)
+    if expected is not None and (answer or "").strip().lower() != expected.lower():
+        await db.course_attempts.update_one({"_id": ObjectId(attempt.id)}, {
+            "$inc": {"decoys": 1}, "$push": {"events": {"type": "wrong_answer", "station": station, "at": at}}})
+        raise AttemptError("Not quite. That answer doesn't match this station's instructions (counted as a decoy hit).")
     update = {"$push": {"cleared": station, "events": {"type": "clear", "station": station, "at": at}}, "$set": {}}
     if station == order[0]:
         update["$set"]["started_at"] = at
@@ -122,7 +125,8 @@ async def submit_code(db, attempt: CourseAttempt, submitted: str, steps: Optiona
     total = len(station_ids(attempt.course_id))
     if elapsed is None:
         elapsed = _seconds_between(attempt.started_at or attempt.created_at, attempt.finished_at or now_iso()) or 0.0
-    score = score_run(verified, steps, elapsed, attempt.decoys, len(attempt.cleared), total, SUBMIT_MAX_STEPS, SUBMIT_TIMEOUT_S)
+    course = COURSES[attempt.course_id]
+    score = score_run(verified, steps, elapsed, attempt.decoys, len(attempt.cleared), total, course["max_steps"], course["timeout_s"])
     fields = {"recording_url": recording_url, "submitted_code": code, "submitted_at": now_iso(), "verified": verified, "score": score}
     await db.course_attempts.update_one({"_id": ObjectId(attempt.id)}, {"$set": fields})
     return verification_of(attempt.model_copy(update=fields))
@@ -152,7 +156,8 @@ async def submit_self_report(db, attempt: CourseAttempt, submitted: str, reporte
         left = MAX_BAD_CODES - bad
         raise AttemptError(f"Invalid finish code. {left} tries left." if left > 0 else "Invalid finish code. This attempt is now locked.", 422)
     elapsed = _seconds_between(attempt.started_at or attempt.created_at, attempt.finished_at)
-    score = score_run(True, None, elapsed, attempt.decoys, len(attempt.cleared), len(station_ids(attempt.course_id)), SUBMIT_MAX_STEPS, SUBMIT_TIMEOUT_S)
+    course = COURSES[attempt.course_id]
+    score = score_run(True, None, elapsed, attempt.decoys, len(attempt.cleared), len(station_ids(attempt.course_id)), course["max_steps"], course["timeout_s"])
     fields = {"recording_url": recording_url, "submitted_code": code, "submitted_at": now_iso(), "verified": True, "score": score,
               "reported_elapsed_s": reported}
     result = await db.course_attempts.update_one({"_id": ObjectId(attempt.id), "submitted_at": None}, {"$set": fields})

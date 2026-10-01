@@ -3,6 +3,7 @@ import { BadgeCheck, Bot, Clock, ExternalLink, Globe, RotateCcw, Sparkles } from
 import { api, BACKEND, post } from "../api";
 import { useAuth } from "../auth";
 import { Badge, Btn, Card, Notice, SignInModal } from "./ui";
+import { COURSES } from "./courses";
 
 const AGENTS = [["copilot", "Copilot", Bot], ["comet", "Comet", Sparkles], ["other", "Other", Globe]];
 
@@ -40,7 +41,7 @@ function Result({ r }) {
   );
 }
 
-export default function SelfReport() {
+export default function SelfReport({ courseId = "obstacle-1" }) {
   const { user } = useAuth();
   const [ask, setAsk] = useState(false);
   const [kind, setKind] = useState("copilot");
@@ -64,7 +65,7 @@ export default function SelfReport() {
   const start = () => {
     if (!user) return setAsk(true);
     setMsg(""); setResult(null); setForm({ code: "", time: "", recording: "" });
-    return post("/course-attempts", { course_id: "obstacle-1", agent_kind: kind, agent_label: name }).then(setAttempt).catch(e => setMsg(e.message));
+    return post("/course-attempts", { course_id: courseId, agent_kind: kind, agent_label: name }).then(setAttempt).catch(e => setMsg(e.message));
   };
   const submit = () => {
     setMsg("");
@@ -78,12 +79,13 @@ export default function SelfReport() {
   return (
     <Card testId="self-report-panel">
       <h3>Self-reported run: Copilot, Comet or any agent</h3>
-      <p className="muted">Pick your agent and get a one-time attempt link. Run your agent on that link in its own browser, then submit the finish code it gets. We time the run on our server from the start line to the finish flag, so your entered time is only shown next to ours.</p>
+      <p className="muted">Course: <b data-testid="self-report-course-name">{COURSES[courseId].short}</b>. Pick your agent and get a one-time attempt link. Run your agent on that link in its own browser, then submit the finish code it gets. We time the run on our server from the start line to the finish flag, so your entered time is only shown next to ours.</p>
       {!live && !result && <AgentPicker kind={kind} setKind={setKind} name={name} setName={setName} onStart={start} />}
       {live && (
         <div className="self-live" data-testid="self-report-attempt">
           <div className="row wrap">
             <Badge kind="sun" testId="self-report-agent-badge">{attempt.agent_label}</Badge>
+            <span className="mono small" data-testid="self-report-course">{COURSES[attempt.course_id]?.short}</span>
             <span className="mono small" data-testid="self-report-progress">{attempt.stations_cleared}/{attempt.stations_total} stations{attempt.finished ? ` · finished in ${attempt.server_elapsed_s}s` : ""}</span>
             {left && <span className="mono small" data-testid="self-report-expiry"><Clock size={12} /> expires in {left}</span>}
           </div>

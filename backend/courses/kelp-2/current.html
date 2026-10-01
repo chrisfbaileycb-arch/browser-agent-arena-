@@ -1,0 +1,36 @@
+<style>
+  .stream { height: 330px; overflow-y: auto; border: 2px dashed #7cf5e4; border-radius: 14px; padding: 10px; background: rgba(2,26,36,.6); margin-top: 12px; }
+  .buoy { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; margin-bottom: 8px; border-radius: 12px; background: #0f5560; }
+  .buoy span { font-family: monospace; font-size: 16px; }
+  .buoy .btn { padding: 6px 14px; }
+  .loading { text-align: center; font-size: 13px; opacity: .7; padding: 8px; }
+</style>
+<section class="board" id="stage">
+  <div class="station-tag">Station 2 · The Current</div>
+  <h1>The Current</h1>
+</section>
+<script>
+(function () {
+  var P = Course.P, I = P.ids, E = Course.el, stage = Course.stage();
+  stage.appendChild(E("p", { text: "Somewhere down this current floats the buoy tagged " + P.target + ". The current only brings more buoys when you scroll to its end. " + P.verb + " that buoy and no other." }));
+  stage.appendChild(E("button", { id: I.c, class: "btn flashy " + I.d, type: "button", text: P.verb + " the nearest buoy", on: function () { Course.decoy("The nearest buoy is not yours."); } }));
+  var list = E("div", { class: "stream " + I.a, id: I.b, "aria-label": "Ocean current (scroll for more buoys)" });
+  var loader = E("div", { class: "loading", text: "Scroll down for more buoys…" });
+  stage.appendChild(list);
+  var shown = 0, loading = false;
+  var more = function () {
+    P.tags.slice(shown, shown + P.batch).forEach(function (t) {
+      list.insertBefore(E("div", { class: "buoy " + I.e }, [E("span", { text: "Buoy " + t }),
+        E("button", { type: "button", class: "btn " + I.f, text: P.verb, "aria-label": P.verb + " buoy " + t, on: function () { Course.clear(t); } })]), loader);
+    });
+    shown += P.batch;
+    if (shown >= P.tags.length) loader.textContent = "End of the current.";
+    loading = false;
+  };
+  list.appendChild(loader);
+  more();
+  list.addEventListener("scroll", function () {
+    if (!loading && shown < P.tags.length && list.scrollTop + list.clientHeight >= list.scrollHeight - 60) { loading = true; setTimeout(more, 250); }
+  });
+})();
+</script>

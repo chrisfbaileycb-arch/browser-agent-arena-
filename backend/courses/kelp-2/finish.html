@@ -1,0 +1,27 @@
+<style>
+  .buoyball { width: 90px; height: 90px; border-radius: 50%; background: repeating-linear-gradient(0deg, #ff7f6e 0 18px, #fff 18px 36px); margin: 12px 0; transition: transform .8s ease; }
+  .rung .buoyball { transform: translateY(-14px) rotate(12deg); }
+  #result { margin-top: 16px; padding: 16px; border-radius: 14px; border: 2px solid #ffd23f; background: rgba(255,210,63,.12); }
+  #finish-code { font-family: monospace; font-size: 32px; letter-spacing: .08em; color: #ffd23f; }
+</style>
+<section class="board" id="stage">
+  <div class="station-tag">Station 8 · Surface Buoy</div>
+  <h1>The Surface Buoy</h1>
+  <p>You made it through the forest. Ring the buoy to receive your success code from the course marshal.</p>
+  <div class="buoyball"></div>
+  <div id="result" hidden><p>Circuit cleared. Success code:</p><div id="finish-code"></div><p>Report this code exactly to be scored.</p></div>
+</section>
+<script>
+(function () {
+  var P = Course.P, I = P.ids, E = Course.el, stage = Course.stage();
+  var ring = E("button", { id: I.a, class: "btn go " + I.b, type: "button", text: P.label });
+  var show = function (code) {
+    document.getElementById("finish-code").textContent = code;
+    document.getElementById("result").hidden = false;
+    stage.classList.add("rung"); ring.disabled = true;
+  };
+  ring.addEventListener("click", function () { Course.clear().then(function (d) { if (d && d.code) show(d.code); }); });
+  stage.insertBefore(E("div", { class: "row" }, [ring]), document.getElementById("result"));
+  if (Course.cfg.code) show(Course.cfg.code);
+})();
+</script>

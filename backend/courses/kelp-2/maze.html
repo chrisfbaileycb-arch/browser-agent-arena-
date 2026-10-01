@@ -1,0 +1,23 @@
+<section class="board" id="stage">
+  <div class="station-tag">Station 3 · Kelp Maze</div>
+  <h1>The Kelp Maze</h1>
+</section>
+<script>
+(function () {
+  var P = Course.P, I = P.ids, E = Course.el, stage = Course.stage();
+  stage.appendChild(E("p", { text: "Marshal's directions: " + P.instruction + " Pick the direction first; the passages change with it." }));
+  var dir = E("select", { id: I.a, class: I.b, name: I.a }, [E("option", { value: "", text: "Choose a direction…" })].concat(P.dirs.map(function (d) { return E("option", { value: d, text: d }); })));
+  var pass = E("select", { id: I.c, class: I.d, name: I.c, disabled: true }, [E("option", { value: "", text: "Choose a direction first" })]);
+  var swim = E("button", { id: I.e, class: "btn go " + I.f, type: "button", text: "Swim this way", disabled: true, on: function () { Course.clear(dir.value + "|" + pass.value); } });
+  dir.addEventListener("change", function () {
+    pass.innerHTML = "";
+    pass.appendChild(E("option", { value: "", text: dir.value ? "Choose a passage…" : "Choose a direction first" }));
+    (P.passages[dir.value] || []).forEach(function (p) { pass.appendChild(E("option", { value: p, text: p })); });
+    pass.disabled = !dir.value; swim.disabled = true;
+  });
+  pass.addEventListener("change", function () { swim.disabled = !pass.value; });
+  stage.appendChild(E("div", { class: "row" }, [E("label", { class: "f" }, [E("span", { text: "Direction" }), dir]), E("label", { class: "f" }, [E("span", { text: "Passage" }), pass])]));
+  var shortcut = E("button", { id: I.g, class: "btn flashy " + I.h, type: "button", text: "Swim straight through the kelp", on: function () { Course.decoy("Straight through the kelp is a dead end."); } });
+  stage.appendChild(E("div", { class: "row" }, Math.random() < 0.5 ? [swim, shortcut] : [shortcut, swim]));
+})();
+</script>

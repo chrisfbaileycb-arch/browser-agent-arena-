@@ -1,0 +1,18 @@
+<style>
+  .shoal { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  .mirror { display: grid; gap: 4px; padding: 14px; border-radius: 14px; border: 2px solid #7cf5e4; background: #0f5560; color: #e9fbf6; text-align: center; }
+  .mirror small { font-family: monospace; font-size: 12px; opacity: .85; }
+</style>
+<section class="board" id="stage">
+  <div class="station-tag">Station 7 · Mirror Shoal</div>
+  <h1>Mirror Shoal</h1>
+</section>
+<script>
+(function () {
+  var P = Course.P, I = P.ids, E = Course.el, stage = Course.stage();
+  stage.appendChild(E("p", { text: "Six buttons, one real exit. The labels are all near-copies, so ignore them: only the button with the tag " + P.serial + " is real." }));
+  stage.appendChild(E("div", { class: "shoal " + I.a, id: I.b }, P.buttons.map(function (b) {
+    return E("button", { type: "button", id: b.id, class: "mirror " + I.c, on: function () { Course.clear(b.serial); } }, [E("b", { text: b.label }), E("small", { text: "tag " + b.serial })]);
+  })));
+})();
+</script>

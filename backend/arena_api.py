@@ -17,8 +17,9 @@ from pydantic import BaseModel, Field
 from adapters import ADAPTERS
 from adapters.relay import DEFAULT_ASSIGNMENTS, ROLE_NAMES
 from auth import current_user, require_pro
-from courses import COURSES
+from courses import COURSES, station_ids
 from db import db
+from keys import PROVIDERS, KeyMissing, resolve_key
 from models import RunCreate
 from platform_api import level
 from runner import DATA_DIR
@@ -44,10 +45,12 @@ def to_oid(value: str) -> ObjectId:
 class Entrant(BaseModel):
     crab_id: Optional[str] = Field(default=None, max_length=40)
     adapter: Optional[str] = Field(default=None, max_length=40)
+    relay: bool = False
 
 
 class TournamentCreate(BaseModel):
     name: str = Field(default="Tidepool Cup", min_length=1, max_length=60)
+    course_id: str = Field(default="obstacle-1", max_length=60)
     entrants: list[Entrant] = Field(min_length=2, max_length=8)
 
 
@@ -62,10 +65,12 @@ def squad_assignments(raw: Optional[dict]) -> dict:
     return merged
 
 
-async def relay_profile(user: dict) -> dict:
+async def relay_profile(user: dict, course_id: str = "obstacle-1") -> dict:
     uid = str(user["_id"])
     squad = await db.squads.find_one({"user_id": uid}) or {}
-    slots, assignments = squad.get("slots") or {}, squad_assignments(squad.get("assignments"))
+    order = station_ids(course_id)
+    slots = squad.get("slots") or {}
+    assignments = {k: v for k, v in squad_assignments(squad.get("assignments")).items() if k in order}
     legs = []
     for role in [r for r in ROLES if r in assignments.values()]:
         crab = await db.crabs.find_one({"_id": to_oid(slots[role]), "user_id": uid}) if slots.get(role) else None
@@ -73,8 +78,18 @@ async def relay_profile(user: dict) -> dict:
             raise HTTPException(409, f"Your squad's {ROLE_NAMES[role]} slot is empty. Fill it on the squad card to start a relay.")
         legs.append({"role": role, "crab_id": str(crab["_id"]),
                      **{k: crab.get(k) for k in ("name", "provider", "model", "personality", "system_prompt", "memory", "color", "accent", "accessory")}})
-    lead = next(leg for leg in legs if leg["role"] == assignments["start"])
-    return {"name": "Squad Relay", "color": lead["color"], "accent": lead["accent"], "accessory": lead["accessory"], "legs": legs, "assignments": assignments}
+    lead = next(leg for leg in legs if leg["role"] == assignments[order[0]])
+    return {"name": "Squad Relay", "color": lead["color"], "accent": lead["accent"], "accessory": lead["accessory"], "legs": legs,
+            "assignments": assignments, "first_station": order[0]}
+
+
+async def check_squad_keys(user: dict, profile: dict) -> None:
+    for leg in profile["legs"]:
+        provider = leg.get("provider") or "gemini"
+        try:
+            await resolve_key(user, provider)
+        except KeyMissing:
+            raise HTTPException(412, f"Squad crab {leg['name']} ({ROLE_NAMES[leg['role']]}) needs your {PROVIDERS[provider]} key. Add it in My Keys.")
 
 
 def view(doc: dict) -> dict:
@@ -87,7 +102,13 @@ async def stats():
             "runs": await db.runs.count_documents({})}
 
 
-async def entrant_of(e: Entrant, user: dict) -> dict:
+async def entrant_of(e: Entrant, user: dict, course_id: str) -> dict:
+    if e.relay:
+        profile = await relay_profile(user, course_id)
+        await check_squad_keys(user, profile)
+        return {"crab_id": None, "adapter": "relay", "name": "Squad Relay", "champion": False, "relay": True,
+                **{k: profile[k] for k in ("color", "accent", "accessory")},
+                "squad": [{k: leg.get(k) for k in ("role", "name", "color", "accent", "accessory")} for leg in profile["legs"]]}
     if e.crab_id:
         crab = await db.crabs.find_one({"_id": to_oid(e.crab_id), "$or": [{"user_id": str(user["_id"])}, {"is_champion": True}]})
         if not crab:
@@ -132,7 +153,8 @@ async def play_match(tid: ObjectId, r: int, i: int, m: dict, user: dict) -> Opti
         return a or b
     key = f"rounds.{r}.{i}"
     try:
-        ids = [await start_run(user, RunCreate(course_id="obstacle-1", crab_id=e["crab_id"], adapter=e["adapter"])) for e in (a, b)]
+        course_id = (await db.tournaments.find_one({"_id": tid}, {"course_id": 1})).get("course_id") or "obstacle-1"
+        ids = [await start_run(user, RunCreate(course_id=course_id, crab_id=e["crab_id"], adapter=e["adapter"])) for e in (a, b)]
     except HTTPException as exc:
         await db.tournaments.update_one({"_id": tid}, {"$set": {f"{key}.error": str(exc.detail)[:200]}})
         return a
@@ -165,8 +187,12 @@ async def run_tournament(tid: ObjectId, user: dict) -> None:
 async def create_tournament(body: TournamentCreate, user: dict = Depends(require_pro)):
     if await db.tournaments.count_documents({"user_id": str(user["_id"]), "status": "running"}):
         raise HTTPException(409, "You already have a tournament in progress.")
-    entrants = [await entrant_of(e, user) for e in body.entrants]
-    doc = {"user_id": str(user["_id"]), "name": body.name, "status": "running", "entrants": entrants, "rounds": bracket(entrants),
+    if body.course_id not in COURSES:
+        raise HTTPException(404, "Course not found")
+    if sum(e.relay for e in body.entrants) > 1:
+        raise HTTPException(422, "Only one Squad Relay entrant per tournament (you have one squad).")
+    entrants = [await entrant_of(e, user, body.course_id) for e in body.entrants]
+    doc = {"user_id": str(user["_id"]), "name": body.name, "course_id": body.course_id, "status": "running", "entrants": entrants, "rounds": bracket(entrants),
            "champion": None, "created_at": now_iso()}
     tid = (await db.tournaments.insert_one(doc)).inserted_id
     task = asyncio.create_task(run_tournament(tid, user))
@@ -233,7 +259,12 @@ async def revoke_share(tournament_id: str, user: dict = Depends(current_user)):
 
 
 def clean_entrant(e: Optional[dict]) -> Optional[dict]:
-    return {k: e.get(k) for k in ("crab_id", "name", "color", "accent", "accessory", "champion", "adapter")} if e else None
+    if not e:
+        return None
+    out = {k: e.get(k) for k in ("crab_id", "name", "color", "accent", "accessory", "champion", "adapter")}
+    if e.get("relay"):
+        out.update(relay=True, squad=[{k: m.get(k) for k in ("role", "name", "color", "accent", "accessory")} for m in e.get("squad", [])])
+    return out
 
 
 # ---------- collector cards (public, stats only — never prompts or keys) ----------
@@ -276,7 +307,8 @@ def clean_tournament(doc: dict) -> dict:
     rounds = [[{"a": clean_entrant(m["a"]), "b": clean_entrant(m["b"]), "run_a": m["run_a"], "run_b": m["run_b"], "score_a": m["score_a"],
                 "score_b": m["score_b"], "winner": clean_entrant(m["winner"]), "error": "Match could not start" if m.get("error") else None}
                for m in rnd] for rnd in doc["rounds"]]
-    return {"name": doc["name"], "status": doc["status"], "course": COURSES["obstacle-1"]["name"], "created_at": doc["created_at"],
+    return {"name": doc["name"], "status": doc["status"], "course": COURSES[doc.get("course_id") or "obstacle-1"]["name"],
+            "course_id": doc.get("course_id") or "obstacle-1", "created_at": doc["created_at"],
             "finished_at": doc.get("finished_at"), "views": doc.get("views", 0), "champion": clean_entrant(doc.get("champion")),
             "entrants": [clean_entrant(e) for e in doc["entrants"]], "rounds": rounds}
 
@@ -325,13 +357,13 @@ async def public_run(slug: str, run_id: str, request: Request):
     base = f"/api/public/t/{slug}/runs/{run_id}/screenshots"
     prof = run.get("profile") or {}
     return {"id": run_id, "kind": "course", "adapter": run["adapter"], "status": run["status"], "model": run.get("model"),
-            "champion_label": run.get("champion_label"), "course_id": run.get("course_id"), "display_url": COURSES["obstacle-1"]["name"],
+            "champion_label": run.get("champion_label"), "course_id": run.get("course_id"), "display_url": COURSES[run.get("course_id") or "obstacle-1"]["name"],
             "profile": {**{k: prof.get(k) for k in ("name", "color", "accent", "accessory")},
                         "legs": [{k: leg.get(k) for k in ("role", "name", "color", "accent", "accessory")} for leg in prof.get("legs", [])]},
             "steps": [clean_step(s, base) for s in run.get("steps", [])], "steps_used": run.get("steps_used", 0), "max_steps": run.get("max_steps"),
             "score": run.get("score"), "end_reason": run.get("end_reason"), "elapsed_s": run.get("elapsed_s"), "hints": [],
             "verification": {k: (run.get("verification") or {}).get(k) for k in ("verified", "stations_cleared", "stations_total", "decoys")},
-            "legs": [{k: leg.get(k) for k in ("index", "role", "role_name", "name", "color", "status", "steps", "elapsed_s", "from_station", "to_station")}
+            "legs": [{k: leg.get(k) for k in ("index", "role", "role_name", "name", "color", "accent", "accessory", "status", "steps", "elapsed_s", "from_station", "to_station")}
                      for leg in run.get("legs", [])],
             "relay_failure": run.get("relay_failure"), "created_at": run["created_at"], "started_at": run.get("started_at"),
             "finished_at": run.get("finished_at"), "final_screenshot": f"{base}/final.jpg" if run.get("final_screenshot") else None, "is_public": True}
@@ -356,7 +388,7 @@ async def share_card(slug: str, request: Request):
     doc = await shared(slug, request)
     champ = (doc.get("champion") or {}).get("name")
     title = html.escape(f"{doc['name']} · {'Champion: ' + champ if champ else 'Live bracket'} | Browser Agent Arena")
-    desc = html.escape(f"{len(doc['entrants'])} browser agents raced the {COURSES['obstacle-1']['name']}. Watch every duel replay.")
+    desc = html.escape(f"{len(doc['entrants'])} browser agents raced the {COURSES[doc.get('course_id') or 'obstacle-1']['name']}. Watch every duel replay.")
     origin, target = origin_of(request), f"/t/{slug}"
     return HTMLResponse(f"""<!doctype html><html><head><meta charset="utf-8"><title>{title}</title>
 <meta property="og:type" content="website"><meta property="og:title" content="{title}"><meta property="og:description" content="{desc}">
@@ -379,7 +411,7 @@ async def share_image(slug: str, request: Request):
     d.text((80, 140), doc["name"].upper(), fill="#FFFFFF", font=font(64))
     d.text((80, 250), "CHAMPION" if champ else "BRACKET IN PROGRESS", fill="#7CF5E4", font=font(40))
     d.text((80, 310), champ.get("name", "To be decided"), fill="#FFD23F", font=font(84))
-    d.text((80, 520), f"{len(doc['entrants'])} agents · {COURSES['obstacle-1']['name']}", fill="#BDB3E6", font=font(30))
+    d.text((80, 520), f"{len(doc['entrants'])} agents · {COURSES[doc.get('course_id') or 'obstacle-1']['name']}", fill="#BDB3E6", font=font(30))
     color = champ.get("color") or "#FF5A4E"
     d.ellipse((860, 190, 1100, 430), fill=color, outline="#FFFFFF", width=6)
     for x in (930, 1030):

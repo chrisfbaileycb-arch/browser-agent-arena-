@@ -10,9 +10,10 @@ const FORMATIONS = {
   "1-3": { scout: [50, 22], extract: [18, 72], gate: [50, 72], settle: [82, 72] },
 };
 
-const STATIONS = ["start", "wall", "doors", "rope", "beam", "tunnel", "finish"];
+import { courseOf } from "./courses";
 
-function RelayControls({ squad, setSquad, crabs, champions, onRelay, save }) {
+function RelayControls({ squad, setSquad, crabs, champions, onRelay, save, courseId }) {
+  const { stations: STATIONS, short } = courseOf(courseId);
   const [opponent, setOpponent] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -23,7 +24,7 @@ function RelayControls({ squad, setSquad, crabs, champions, onRelay, save }) {
   };
   return (
     <div className="relay-box" data-testid="relay-controls">
-      <h4>Squad Relay · station assignments</h4>
+      <h4>Squad Relay · station assignments · <span data-testid="relay-course-name">{short}</span></h4>
       <div className="assign-grid">
         {STATIONS.map(st => (
           <label key={st}><small>{st}</small>
@@ -46,7 +47,7 @@ function RelayControls({ squad, setSquad, crabs, champions, onRelay, save }) {
   );
 }
 
-export default function SquadCard({ crabs, champions = [], onEnter, onRelay }) {
+export default function SquadCard({ crabs, champions = [], onEnter, onRelay, courseId }) {
   const [squad, setSquad] = useState({ slots: {}, formation: "1-2-1", assignments: {} });
   const [msg, setMsg] = useState("");
   useEffect(() => { api("/squad").then(setSquad).catch(() => {}); }, []);
@@ -88,11 +89,12 @@ export default function SquadCard({ crabs, champions = [], onEnter, onRelay }) {
             </select>
             <Btn onClick={save} testId="squad-save-btn">Save squad</Btn>
             <Btn kind="ghost" disabled={members.length < 1} onClick={() => onEnter(members)} testId="squad-enter-btn">Enter tournament</Btn>
+            <Btn kind="ghost" disabled={members.length < 1} onClick={() => onEnter(["relay"])} testId="squad-enter-relay-btn">Enter squad as relay</Btn>
           </div>
           <Notice testId="squad-msg">{msg}</Notice>
         </div>
       </div>
-      <RelayControls squad={squad} setSquad={setSquad} crabs={crabs} champions={champions} onRelay={onRelay} save={persist} />
+      <RelayControls squad={squad} setSquad={setSquad} crabs={crabs} champions={champions} onRelay={onRelay} save={persist} courseId={courseId} />
     </section>
   );
 }

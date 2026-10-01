@@ -6,12 +6,15 @@ import * as THREE from "three";
 import { CrabModel } from "./Crab3D";
 import { REDUCED_MOTION } from "./Crab";
 
-export const STATIONS = ["start", "wall", "doors", "rope", "beam", "tunnel", "finish"];
-export const STATION_X = [-12, -8, -4, 0, 4, 8, 12];
 const LANES = [-1.4, 1.4];
 const NEON = ["#FF5A4E", "#12B5A5", "#4D8BFF", "#FFD23F", "#FF9F1C", "#8B5CF6"];
-const BANNERS = [["STEPS OF EXECUTION", "#FF5A4E", "#FFF8EF"], ["BROWSER AGENT ARENA", "#1B1530", "#FFD23F"],
-  ["VERIFIED FINISH CODES", "#12B5A5", "#0A0820"], ["BRING YOUR OWN KEYS", "#4D8BFF", "#FFF8EF"]];
+const THEMES = {
+  tidepool: { bg: "#0A0820", ground: "turf", stands: "concrete", neon: NEON, hemi: ["#6C7CFF", "#1A0F2E"], points: ["#FF9F1C", "#12B5A5"], rail: "#FF9F1C",
+    banners: [["STEPS OF EXECUTION", "#FF5A4E", "#FFF8EF"], ["BROWSER AGENT ARENA", "#1B1530", "#FFD23F"], ["VERIFIED FINISH CODES", "#12B5A5", "#0A0820"], ["BRING YOUR OWN KEYS", "#4D8BFF", "#FFF8EF"]] },
+  kelp: { bg: "#021A24", ground: "sand", stands: "reef", neon: ["#2EE6A6", "#7CF5E4", "#FF7F6E", "#FFD23F", "#4DB8FF", "#B48CFF"], hemi: ["#3FD0C9", "#02141C"], points: ["#2EE6A6", "#4DB8FF"], rail: "#2EE6A6",
+    banners: [["KELP FOREST CIRCUIT", "#0A4A3A", "#7CF5E4"], ["NEW SEED EVERY ATTEMPT", "#FF7F6E", "#021A24"], ["NO HARDCODED SELECTORS", "#021A24", "#FFD23F"], ["SURFACE FOR THE CODE", "#2EE6A6", "#021A24"]] },
+};
+export const xsFor = n => Array.from({ length: n }, (_, i) => -12 + (24 * i) / (n - 1));
 
 // Procedural PBR maps (no downloads): mowed turf, wood grain, twisted rope, concrete.
 function canvasTex(w, h, draw, repeat) {
@@ -31,6 +34,8 @@ const tex = () => (TEX ||= {
   wood: canvasTex(256, 256, (g, w, h) => { g.fillStyle = "#C27B3E"; g.fillRect(0, 0, w, h); for (let i = 0; i < 46; i++) { g.strokeStyle = `rgba(90,45,15,${0.12 + Math.random() * 0.2})`; g.lineWidth = 1 + Math.random() * 2; g.beginPath(); const y = Math.random() * h; g.moveTo(0, y); for (let x = 0; x <= w; x += 16) g.lineTo(x, y + Math.sin(x / 30 + i) * 4); g.stroke(); } }, [1, 1]),
   rope: canvasTex(64, 256, (g, w, h) => { g.fillStyle = "#D2AA6E"; g.fillRect(0, 0, w, h); g.strokeStyle = "rgba(110,72,30,.55)"; g.lineWidth = 6; for (let y = -w; y < h + w; y += 18) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y + w); g.stroke(); } }, [1, 6]),
   concrete: canvasTex(256, 256, (g, w, h) => { g.fillStyle = "#2A2350"; g.fillRect(0, 0, w, h); speckle(g, w, h, 5000, ["#352D63", "#221C42", "#3D3570"]); }, [10, 1]),
+  sand: canvasTex(512, 512, (g, w, h) => { g.fillStyle = "#C9B27C"; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 14) { g.strokeStyle = "rgba(120,96,50,.25)"; g.lineWidth = 3; g.beginPath(); for (let x = 0; x <= w; x += 16) g.lineTo(x, y + Math.sin(x / 40 + y) * 4); g.stroke(); } speckle(g, w, h, 7000, ["#B89F68", "#DCC896", "#A88E5A"]); }, [6, 1.6]),
+  reef: canvasTex(256, 256, (g, w, h) => { g.fillStyle = "#0E3B45"; g.fillRect(0, 0, w, h); speckle(g, w, h, 5000, ["#145A63", "#0A2C34", "#1D6B5A", "#FF7F6E"]); }, [10, 1]),
 });
 
 const Mat = ({ c = "#FFFFFF", e = 0, map, metal = 0.1, rough = 0.45 }) => (
@@ -47,7 +52,47 @@ function Arch({ r, c, e = 1.4, n = 1, gap = 0 }) {
   ));
 }
 
-function Obstacle({ id }) {
+function Kelp({ p, h = 2.4, c = "#2E8B57" }) {
+  const ref = useRef(), ph = useMemo(() => Math.random() * 6, []);
+  useFrame(({ clock }) => { if (ref.current && !REDUCED_MOTION) ref.current.rotation.z = Math.sin(clock.elapsedTime * 1.2 + ph) * 0.12; });
+  return (
+    <group ref={ref} position={p}>
+      <mesh position={[0, h / 2, 0]} castShadow><cylinderGeometry args={[0.04, 0.07, h, 6]} /><Mat c={c} rough={0.6} /></mesh>
+      {[0.35, 0.6, 0.85].map((k, i) => <mesh key={k} position={[i % 2 ? 0.12 : -0.12, h * k, 0]} rotation={[0, 0, i % 2 ? -0.7 : 0.7]}><sphereGeometry args={[0.16, 8, 6]} /><Mat c={c} rough={0.6} /></mesh>)}
+    </group>
+  );
+}
+
+function KelpObstacle({ id }) {
+  const t = tex();
+  if (id === "entry") return <group><Kelp p={[0, 0, -1]} /><Kelp p={[0, 0, 1]} /><Box p={[0.1, 1.1, 0]} s={[0.08, 0.9, 1.3]} c="#FFD23F" e={0.8} /><Box p={[0.15, 0.85, 0.3]} s={[0.04, 0.22, 0.5]} c="#FF3DA5" e={1.4} /></group>;
+  if (id === "current") return <group>{[-0.7, 0, 0.7].map((z, k) => <mesh key={z} position={[0, 0.06 + k * 0.01, z]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[2.6, 0.32]} /><meshBasicMaterial color="#4DB8FF" transparent opacity={0.55} toneMapped={false} /></mesh>)}<mesh position={[0.6, 0.35, 0.2]}><sphereGeometry args={[0.22, 14, 10]} /><Mat c="#FF7F6E" rough={0.3} /></mesh></group>;
+  if (id === "maze") return <group>{[[-0.6, -0.8], [0, -0.3], [0.6, -0.8], [-0.6, 0.4], [0.6, 0.4], [0, 0.9]].map(([x, z], k) => <Kelp key={k} p={[x, 0, z]} h={1.6 + (k % 3) * 0.4} c={k % 2 ? "#2E8B57" : "#3FA36B"} />)}</group>;
+  if (id === "crates") return <group>{[[0, 0.25, -0.4], [0, 0.25, 0.4], [0, 0.75, 0], [0, 1.25, 0]].map((p, k) => <Box key={k} p={p} s={[0.5, 0.48, 0.5]} c="#FFFFFF" map={t.wood} rough={0.7} />)}</group>;
+  if (id === "tide") return <group><Box p={[0, 1.6, 0]} s={[0.16, 0.16, 2.2]} {...METAL} />{[-0.8, -0.4, 0, 0.4, 0.8].map(z => <Box key={z} p={[0, 0.8, z]} s={[0.06, 1.6, 0.06]} {...METAL} />)}<mesh position={[-0.3, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[0.6, 2.2]} /><meshBasicMaterial color="#7CF5E4" transparent opacity={0.4} toneMapped={false} /></mesh></group>;
+  if (id === "cave") return <group><mesh position={[0, 0, 0]} castShadow><sphereGeometry args={[1.05, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2]} /><Mat c="#4A4F55" rough={0.95} /></mesh><mesh position={[0.95, 0.45, 0]} rotation={[0, Math.PI / 2, 0]}><circleGeometry args={[0.42, 16]} /><meshBasicMaterial color="#FFD23F" toneMapped={false} /></mesh></group>;
+  if (id === "lookalike") return <group>{[-0.7, 0, 0.7].map((z, k) => <Box key={z} p={[0, 0.7, z]} s={[0.06, 1.2, 0.5]} c={k === 1 ? "#7CF5E4" : "#B9E6F0"} metal={0.9} rough={0.08} e={k === 1 ? 0.6 : 0} />)}</group>;
+  return <group><Box p={[0, 0.9, 0]} s={[0.08, 1.8, 0.08]} {...METAL} /><mesh position={[0, 1.95, 0]} castShadow><sphereGeometry args={[0.36, 16, 12]} /><Mat c="#FF7F6E" e={0.9} /></mesh><mesh position={[0, 1.95, 0]}><torusGeometry args={[0.37, 0.05, 6, 20]} /><Mat c="#FFFFFF" e={0.6} /></mesh></group>;
+}
+
+function Bubbles() {
+  const ref = useRef(), dummy = useMemo(() => new THREE.Object3D(), []);
+  const bits = useMemo(() => Array.from({ length: 140 }, () => ({ x: (Math.random() - 0.5) * 34, z: (Math.random() - 0.5) * 12 - 1, v: 0.4 + Math.random() * 0.8, p: Math.random() * 10, s: 0.04 + Math.random() * 0.08 })), []);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    bits.forEach((b, i) => {
+      dummy.position.set(b.x + Math.sin(t + b.p) * 0.2, ((t * b.v + b.p) % 9), b.z);
+      dummy.scale.setScalar(REDUCED_MOTION ? 0 : b.s * 10);
+      dummy.updateMatrix();
+      ref.current.setMatrixAt(i, dummy.matrix);
+    });
+    ref.current.instanceMatrix.needsUpdate = true;
+  });
+  return <instancedMesh ref={ref} args={[null, null, bits.length]}><sphereGeometry args={[0.1, 8, 6]} /><meshStandardMaterial color="#BFF7FF" transparent opacity={0.45} roughness={0.1} /></instancedMesh>;
+}
+
+function Obstacle({ id, theme }) {
+  if (theme === "kelp") return <KelpObstacle id={id} />;
   const t = tex();
   if (id === "start") return <group><Box p={[0, 0.8, -1]} s={[0.15, 1.6, 0.15]} {...METAL} /><Box p={[0, 0.8, 1]} s={[0.15, 1.6, 0.15]} {...METAL} /><Box p={[0, 1.6, 0]} s={[0.2, 0.2, 2.1]} c="#12B5A5" e={1.6} /></group>;
   if (id === "wall") return <group><Box p={[0, 0.7, 0]} s={[0.4, 1.4, 2]} c="#FFFFFF" map={t.wood} rough={0.7} />{[...Array(6)].map((_, k) => <mesh key={k} castShadow position={[0.22, 0.3 + (k % 3) * 0.4, -0.55 + Math.floor(k / 3) * 1.1]}><sphereGeometry args={[0.08, 12, 8]} /><Mat c={NEON[k]} rough={0.3} /></mesh>)}</group>;
@@ -199,32 +244,34 @@ function FloodLights({ reaction }) {
   );
 }
 
-function Venue() {
+function Venue({ th, stations, xs }) {
+  const ring = Math.min(2.05, (xs[1] - xs[0]) / 2 - 0.05);
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[36, 9.6]} /><meshStandardMaterial map={tex().turf} roughness={0.95} /></mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow><planeGeometry args={[36, 9.6]} /><meshStandardMaterial map={tex()[th.ground]} roughness={0.95} /></mesh>
       {[-2.8, 0, 2.8].map(z => <Box key={z} p={[0, 0.01, z]} s={[34, 0.02, 0.06]} c="#EDE6FF" e={0.4} />)}
-      <Box p={[0, 0.12, 4.6]} s={[36, 0.24, 0.12]} c="#FF9F1C" e={1.6} />
-      {[0, 1, 2, 3, 4, 5].map(r => <Box key={r} p={[0, (r + 1) * 0.275, -5.2 - r * 0.7]} s={[35, (r + 1) * 0.55, 0.7]} c="#FFFFFF" map={tex().concrete} rough={0.85} />)}
-      <Box p={[0, 0.5, -3.8]} s={[34, 1.1, 0.1]} c="#0E0B24" />
-      {BANNERS.map(([t, bg, fg], i) => <Banner key={t} text={t} bg={bg} fg={fg} x={-12.3 + i * 8.2} />)}
-      {STATIONS.map((id, i) => (
-        <group key={id} position={[STATION_X[i], 0, 0]}>
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><ringGeometry args={[1.9, 2.05, 40]} /><meshBasicMaterial color={NEON[i % 6]} toneMapped={false} /></mesh>
-          {LANES.map(z => <group key={z} position={[0, 0, z]}><Obstacle id={id} /></group>)}
+      <Box p={[0, 0.12, 4.6]} s={[36, 0.24, 0.12]} c={th.rail} e={1.6} />
+      {[0, 1, 2, 3, 4, 5].map(r => <Box key={r} p={[0, (r + 1) * 0.275, -5.2 - r * 0.7]} s={[35, (r + 1) * 0.55, 0.7]} c="#FFFFFF" map={tex()[th.stands]} rough={0.85} />)}
+      <Box p={[0, 0.5, -3.8]} s={[34, 1.1, 0.1]} c={th.bg} />
+      {th.banners.map(([t, bg, fg], i) => <Banner key={t} text={t} bg={bg} fg={fg} x={-12.3 + i * 8.2} />)}
+      {th === THEMES.kelp && [-17, -15.5, 15.5, 17].flatMap(x => [-3, 0, 3].map(z => <Kelp key={`${x}${z}`} p={[x, 0, z]} h={3 + Math.abs(z) * 0.4} />))}
+      {stations.map((id, i) => (
+        <group key={id} position={[xs[i], 0, 0]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}><ringGeometry args={[ring - 0.15, ring, 40]} /><meshBasicMaterial color={th.neon[i % 6]} toneMapped={false} /></mesh>
+          {LANES.map(z => <group key={z} position={[0, 0, z]}><Obstacle id={id} theme={th === THEMES.kelp ? "kelp" : "tidepool"} /></group>)}
         </group>
       ))}
     </group>
   );
 }
 
-function Racer({ lane, at, mood, look, relay, leg }) {
+function Racer({ lane, at, mood, look, relay, leg, xs }) {
   const g = useRef(), baton = useRef(), passAt = useRef(-99), lastLeg = useRef(leg);
   const [moving, setMoving] = useState(false);
   useEffect(() => { g.current?.traverse(o => { if (o.isMesh) o.castShadow = true; }); }, []);
   useEffect(() => { setMoving(true); const t = setTimeout(() => setMoving(false), 1500); return () => clearTimeout(t); }, [at]);
   useFrame(({ clock }, dt) => {
-    if (g.current) g.current.position.x = THREE.MathUtils.damp(g.current.position.x, STATION_X[at] - 1.1, 2.2, dt);
+    if (g.current) g.current.position.x = THREE.MathUtils.damp(g.current.position.x, xs[at] - 1.1, 2.2, dt);
     if (leg !== lastLeg.current) { lastLeg.current = leg; passAt.current = clock.elapsedTime; }
     if (baton.current) {
       const a = clock.elapsedTime - passAt.current;
@@ -233,20 +280,20 @@ function Racer({ lane, at, mood, look, relay, leg }) {
     }
   });
   return (
-    <group ref={g} position={[STATION_X[at] - 1.1, 0.56, LANES[lane] + 0.9]} scale={0.95}>
+    <group ref={g} position={[xs[at] - 1.1, 0.56, LANES[lane] + 0.9]} scale={0.95}>
       <CrabModel color={look.color} accent={look.accent} accessory={look.accessory} mood={moving && mood !== "stumble" ? "walk" : mood} />
       {relay && <mesh ref={baton} position={[0.95, 1.35, 0.2]}><cylinderGeometry args={[0.07, 0.07, 0.6, 10]} /><meshStandardMaterial color="#FFD23F" emissive="#FF9F1C" emissiveIntensity={1.6} /></mesh>}
     </group>
   );
 }
 
-function CameraRig({ racers, mode }) {
+function CameraRig({ racers, mode, xs }) {
   const pos = useMemo(() => new THREE.Vector3(9, 12.5, 23), []);
   const look = useMemo(() => new THREE.Vector3(0, 0.5, -0.5), []);
   const goal = useMemo(() => new THREE.Vector3(), []);
   useFrame(({ camera }, dt) => {
     if (mode !== "cinematic") return;
-    const lead = Math.max(...racers.map(r => r.at)), x = STATION_X[lead] ?? 0, fin = racers.some(r => r.finished);
+    const lead = Math.max(...racers.map(r => r.at)), x = xs[lead] ?? 0, fin = racers.some(r => r.finished);
     goal.set(fin ? x - 3.5 : x * 0.7 + 6, fin ? 4.2 : 10.5, fin ? 9.5 : 19);
     pos.lerp(goal, 1 - Math.exp(-1.4 * dt));
     goal.set(fin ? x - 1 : x * 0.8, fin ? 1.2 : 0.5, fin ? 1 : -0.5);
@@ -269,17 +316,20 @@ function Effects({ preset, focus }) {
   return <EffectComposer multisampling={full ? 4 : 0}>{fx}</EffectComposer>;
 }
 
-export default function Stadium3D({ racers, reaction, quality, camMode = "cinematic", replay }) {
+export default function Stadium3D({ racers, reaction, quality, camMode = "cinematic", replay, course }) {
   const p = quality.preset;
+  const th = THEMES[course?.theme] || THEMES.tidepool;
+  const stations = course?.stations || ["start", "wall", "doors", "rope", "beam", "tunnel", "finish"];
+  const xs = useMemo(() => xsFor(stations.length), [stations.length]);
   const lead = Math.max(...racers.map(r => r.at));
   return (
     <Canvas key={quality.level} className="stadium-canvas" data-testid="stadium-canvas" shadows={p.shadows ? "soft" : false} dpr={p.dpr}
       camera={{ position: [9, 12.5, 23], fov: 38 }} gl={{ antialias: p.aa, powerPreference: "high-performance", toneMapping: THREE.ACESFilmicToneMapping }}>
       <PerformanceMonitor bounds={() => [45, 240]} flipflops={3} onDecline={quality.degrade}>
-        <color attach="background" args={["#0A0820"]} />
-        <fog attach="fog" args={["#0A0820", 32, 64]} />
+        <color attach="background" args={[th.bg]} />
+        <fog attach="fog" args={[th.bg, th === THEMES.kelp ? 24 : 32, th === THEMES.kelp ? 52 : 64]} />
         <ambientLight intensity={p.env ? 0.25 : 0.45} />
-        <hemisphereLight args={["#6C7CFF", "#1A0F2E", 0.7]} />
+        <hemisphereLight args={[th.hemi[0], th.hemi[1], 0.7]} />
         <directionalLight position={[8, 14, 12]} intensity={1.6} color="#FFF1DA" castShadow={p.shadows} shadow-mapSize={[2048, 2048]}
           shadow-camera-left={-20} shadow-camera-right={20} shadow-camera-top={12} shadow-camera-bottom={-12} shadow-bias={-0.0004} />
         {p.env && (
@@ -290,15 +340,16 @@ export default function Stadium3D({ racers, reaction, quality, camMode = "cinema
           </Environment>
         )}
         <FloodLights reaction={reaction} />
-        <pointLight position={[-10, 3, 3]} color="#FF9F1C" intensity={3} distance={16} decay={1} />
-        <pointLight position={[10, 3, 3]} color="#12B5A5" intensity={3} distance={16} decay={1} />
-        <Venue />
+        <pointLight position={[-10, 3, 3]} color={th.points[0]} intensity={3} distance={16} decay={1} />
+        <pointLight position={[10, 3, 3]} color={th.points[1]} intensity={3} distance={16} decay={1} />
+        <Venue th={th} stations={stations} xs={xs} />
+        {th === THEMES.kelp && <Bubbles />}
         <Crowd reaction={reaction} count={p.crowd} heads={p.heads} />
         <Celebration reaction={reaction} />
-        {racers.map((r, i) => <Racer key={r.id} lane={i} at={r.at} mood={r.mood} look={r.look} relay={r.relay} leg={r.leg} />)}
-        <CameraRig racers={racers} mode={camMode} />
+        {racers.map((r, i) => <Racer key={r.id} lane={i} at={r.at} mood={r.mood} look={r.look} relay={r.relay} leg={r.leg} xs={xs} />)}
+        <CameraRig racers={racers} mode={camMode} xs={xs} />
         {camMode === "free" && <OrbitControls target={[0, 0.5, -0.5]} enablePan={false} minDistance={10} maxDistance={36} minPolarAngle={0.5} maxPolarAngle={1.25} />}
-        <Effects preset={p} focus={replay ? [STATION_X[lead] - 1.1, 0.8, 0.5] : null} />
+        <Effects preset={p} focus={replay ? [xs[lead] - 1.1, 0.8, 0.5] : null} />
       </PerformanceMonitor>
     </Canvas>
   );

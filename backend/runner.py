@@ -39,7 +39,7 @@ async def guard(route):
 
 async def browse(db, run: Run, user: dict, oid: ObjectId, folder: Path, started: float) -> dict:
     adapter = ADAPTERS[run.adapter]
-    remaining = lambda: TIMEOUT_S - (time.monotonic() - started)  # noqa: E731
+    remaining = lambda: run.timeout_s - (time.monotonic() - started)  # noqa: E731
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
         try:
@@ -62,11 +62,11 @@ async def browse(db, run: Run, user: dict, oid: ObjectId, folder: Path, started:
                 return doc["pending_hints"] if doc else []
 
             await page.goto(run.target_url, wait_until="domcontentloaded", timeout=25000)
-            session = BrowserSession(page=page, goal=run.goal, max_steps=MAX_STEPS, remaining=remaining, screenshot=screenshot,
+            session = BrowserSession(page=page, goal=run.goal, max_steps=run.max_steps, remaining=remaining, screenshot=screenshot,
                                      record=record, resolve_key=lambda p: resolve_key(user, p), profile=run.profile, user_id=run.user_id, pull_hints=pull_hints, run_id=str(oid),
                                      public_url=PUBLIC_URL + run.display_url if run.kind == "course" else run.target_url)
             try:
-                outcome = await asyncio.wait_for(adapter.run(session), timeout=TIMEOUT_S + 10)
+                outcome = await asyncio.wait_for(adapter.run(session), timeout=run.timeout_s + 10)
                 end_reason, answer = outcome.end_reason, outcome.answer
             except asyncio.TimeoutError:
                 end_reason, answer = "timeout", None
@@ -102,12 +102,12 @@ async def evaluate(db, run: Run, out: dict, steps: int, elapsed: float) -> dict:
             verification = verification_of(attempt)
         success = bool(verification["verified"])
         score = verification["score"] or score_run(False, steps, elapsed, attempt.decoys, len(attempt.cleared),
-                                                   verification["stations_total"], MAX_STEPS, TIMEOUT_S)
+                                                   verification["stations_total"], run.max_steps, run.timeout_s)
         return {"status": "succeeded" if success else "failed", "score": score, "verification": verification}
     done = out["end_reason"] == "agent_done" and bool(out["agent_result"])
     verification = check_assertions(out["agent_result"] or "", run.assertions) if run.assertions and done else None
     success = done and (verification is None or verification["passed"])
-    score = {**score_run(success, steps, elapsed, 0, 0, 0, MAX_STEPS, TIMEOUT_S), "verified": verification is not None}
+    score = {**score_run(success, steps, elapsed, 0, 0, 0, run.max_steps, run.timeout_s), "verified": verification is not None}
     return {"status": "succeeded" if success else "failed", "score": score, "verification": verification}
 
 

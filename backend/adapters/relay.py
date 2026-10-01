@@ -8,7 +8,8 @@ from adapters.crab import CrabAdapter, station_of
 from db import db
 
 ROLE_NAMES = {"scout": "Scout", "extract": "Extractor", "gate": "Gatekeeper", "settle": "Settlement"}
-DEFAULT_ASSIGNMENTS = {"start": "scout", "wall": "scout", "doors": "gate", "rope": "extract", "beam": "gate", "tunnel": "scout", "finish": "settle"}
+DEFAULT_ASSIGNMENTS = {"start": "scout", "wall": "scout", "doors": "gate", "rope": "extract", "beam": "gate", "tunnel": "scout", "finish": "settle",
+                       "entry": "scout", "current": "scout", "maze": "gate", "crates": "extract", "tide": "gate", "cave": "extract", "lookalike": "gate"}
 CRAB = CrabAdapter()
 
 
@@ -27,9 +28,10 @@ class RelayAdapter(AgentAdapter):
     async def run(self, session: BrowserSession) -> AdapterOutcome:
         legs, assign = {leg["role"]: leg for leg in session.profile["legs"]}, session.profile["assignments"]
         oid, n, index = ObjectId(session.run_id), 0, 0
-        role_at = lambda station: assign.get(station or "start", "scout")  # noqa: E731
+        first_station = session.profile.get("first_station", "start")
+        role_at = lambda station: assign.get(station or first_station, "scout")  # noqa: E731
         while True:
-            station = station_of(session.page.url) or "start"
+            station = station_of(session.page.url) or first_station
             role = role_at(station)
             leg = legs[role]
             first, t0 = n + 1, time.monotonic()

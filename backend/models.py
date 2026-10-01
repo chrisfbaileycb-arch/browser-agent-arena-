@@ -93,6 +93,7 @@ class CourseAttempt(BaseDocument):
     decoys: int = 0
     events: list[dict[str, Any]] = []
     nonces: dict[str, str]
+    seed: str = ""
     code: Optional[str] = None
     submitted_code: Optional[str] = None
     submitted_at: Optional[str] = None
@@ -126,6 +127,7 @@ class AttemptCreate(BaseModel):
 class StationAction(BaseModel):
     station: str = Field(max_length=40)
     nonce: str = Field(max_length=40)
+    answer: Optional[str] = Field(default=None, max_length=200)
 
 
 class CodeSubmission(BaseModel):

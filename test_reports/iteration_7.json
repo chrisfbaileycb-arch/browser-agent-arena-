@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 7 covered the Kelp Forest Circuit (kelp-2) batch end-to-end — backend + frontend. New pytest file test_kelp_h2h_relay.py (14/14 passing) verifies: GET /courses lists both courses (kelp-2 has 8 stations entry/current/maze/crates/tide/cave/lookalike/finish, max_steps 45, timeout_s 240); /courses/kelp-2 and /entry redirect chain creates per-attempt seed; full station walk solving puzzles from embedded <script id=course-config> JSON (wrong maze answer -> 409 + decoy counted; finish returns SOE-XXXX-XXXX); kelp-2 attempt seeds differ between attempts; self-submitted copilot attempt via POST /course-attempts starts at /api/courses/kelp-2/entry?a=... and submit verifies; leaderboard/kelp-2 has 3 champion rows Gemini Scuttler=86, Claude Clawdia=84, GPT Pincer=71; obstacle-1 leaderboard unchanged; /replays?course_id=kelp-2 lists the 3 champs and /runs/{id} steps have /courses/kelp-2/... urls; /h2h/agents lists copilot/comet/other/claude/gpt/gemini/endpoint/relay/crabs + champion crab:* keys; /h2h default copilot vs comet returns self_reported source with enough=false and null metrics (<3 runs); unknown agent -> 404; verified vs verified shape ok; POST /tournaments with two relay entrants -> 422; invalid course -> 404 (did NOT trigger a valid relay tournament to avoid a 3-min real LLM run); public share of existing Kelp Relay Cup (6abdb6f48722e638b6321700) via POST /tournaments/{id}/share + GET /public/t/{slug} returns course_id=kelp-2 with relay squad fields = role/name/color/accent/accessory (no user_id/system_prompt/provider).\n\nFrontend verified: /arena course picker switches heading to 'Duel on the Kelp Forest Circuit'; self-report-course-name/relay-course-name/tournament-course all show 'Kelp Forest Circuit'; relay-assign-{entry,current,maze,crates,tide,cave,lookalike,finish} 8 selectors present; squad-enter-relay-btn adds an entrant-relay chip; bracket for Kelp Relay Cup shows bracket-course='Course: Kelp Forest Circuit', entrant-card-0 lists all 4 relay members (Scout Sally/Pinchy/Gate Gus/TESTUI_2570042) with mini-crab imagery, match-0-0-squad-a present. /course page: course-page-picker-kelp-2 toggles title to 'Obstacle Course 2 — The Kelp Forest Circuit', broadcast element has data-course='kelp-2', 'REPLAY · 1/8 stations' header, and 8 station-card-{...} nodes in the minimap. /leaderboard: leaderboard-course-{obstacle-1,kelp-2} chips both present; kelp tab shows champion cards + rows; h2h-panel+h2h-select-a/b+h2h-fighter-a/b+h2h-source-a/b all render; default Copilot vs Comet shows h2h-empty 'Not enough runs yet'. Home page also hosts the compact h2h-panel. No critical console errors beyond the expected initial 401 (optional-auth probe).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Kelp Relay Cup final", "issue": "Bracket final shows 'Server restarted during the tournament' for the champion panel — the pre-seeded tournament lost its final result after a restart. Not caused by this iteration but visible to end users.", "affected_selectors": ["bracket-course", "match-0-0-squad-a"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_kelp_h2h_relay.py",
+    "/app/test_reports/pytest/kelp_h2h_relay.xml"
+  ],
+  "action_items": [
+    "Decide whether the squad list exposed on tournament.entrants should include accent/accessory. The review spec called for role/name/color only; current code (arena_api.py L111 & L266) also returns accent/accessory. These are purely display fields so no data-leak risk, but worth confirming the spec wording.",
+    "Consider restoring/replaying the Kelp Relay Cup final so the pre-seeded tournament doesn't permanently display 'Server restarted during the tournament' to viewers.",
+    "Minor UX: switching the /arena course picker leaves any in-flight self-report attempt panel pointing at the previous course (badge + URL still say Tidepool / obstacle-1). The self-report-course-name text updates correctly, but the attempt card itself stays until the user hits 'New attempt'. Clarify intent."
+  ],
+  "critical_code_review_comments": [
+    "arena_api.py check_squad_keys/entrant_of path for relay is covered but was not exercised with a real missing-key crab in this run; ALLOW_PLATFORM_KEY_FOR_DEV=true means seeded users don't fail. Consider a unit test that mocks require_pro user without dev_platform_key.",
+    "course_api.course_station emits a friendly 'Out of order' notice page for a wrong-station GET with a valid attempt id — fine behavior, but note that the HTML returned has no 'puzzle' field (my first seed-diff test tripped on this). Any UI/test code that infers 'puzzle present' as a sanity check should also check `attempt != null`.",
+    "/replays strips 'steps' from the list response (server.py:168) but the review request implies the champion runs' steps should be inspectable; details are available via /runs/{id}, which currently needs auth even for public champion runs. If replays are supposed to be publicly viewable with their recorded screens, GET /runs/{id} may need to allow optional_user for is_public=True runs (it already uses optional_user+can_view — looked ok in a spot check, worth re-reading can_view for champion/public cases).",
+    "Starting a tournament via POST /tournaments immediately kicks off a 3-min real LLM run; no dry-run flag means test code must either accept the cost/time or avoid the valid path entirely. Consider a `?dry_run=true` or test-only hook for CI." 
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_kelp_h2h_relay.py (new)"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% core selectors verified"},
+  "test_credentials": "pro@steps.dev / ProCrab!2026 (used); admin@steps.dev / ArenaAdmin!2026 (used for /runs/{id} replay step inspection)",
+  "seed_data_creation": "Cleaned up: 1 self-report attempt (6abdb80a03295fe8a87ac0cb) created and immediately deleted via Mongo; 1 TEST_relay_cup_* tournament accidentally started by an earlier iteration of the test (before I reordered the 422-first check) was deleted post-run. Preserved: 3 kelp-2 champion runs, Kelp Relay Cup tournament 6abdb6f48722e638b6321700.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_kelp_h2h_relay.py deliberately does NOT exercise the valid 2-entrant relay tournament POST (would launch a real ~3-min LLM run and hog the single-tournament-per-user slot). Shape of the squad on created tournaments is instead validated via the already-completed Kelp Relay Cup (id 6abdb6f48722e638b6321700). Backend uvicorn reloader watches /app/backend/ including tests/ — do NOT edit test files while a pytest run is active; restart backend with `sudo supervisorctl restart backend` and wait ~8s before re-running if you see 502s. In-memory rate limits persist until restart.",
+  "rca of the issue": "N/A — no blocking defects. The one notable regression surface (Kelp Relay Cup final shows 'Server restarted during the tournament') pre-exists in the seeded data and is not reproducible by starting a new relay tournament (which would be a real LLM run). The seeded fixture appears to have been interrupted mid-final at some earlier point."
+}

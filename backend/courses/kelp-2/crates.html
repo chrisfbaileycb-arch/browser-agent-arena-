@@ -1,0 +1,59 @@
+<style>
+  .dock { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+  .pile, .stack { min-height: 250px; border-radius: 14px; padding: 10px; background: rgba(2,26,36,.6); border: 2px dashed #7cf5e4; }
+  .stack { display: flex; flex-direction: column-reverse; gap: 6px; border-color: #ffd23f; }
+  .stack.over { background: rgba(255,210,63,.15); }
+  .crate { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 8px; border-radius: 8px;
+    background: #8a5a2c; color: #fff3d6; border: 2px solid #4f3216; cursor: grab; font-weight: bold; }
+  .crate .btn { padding: 4px 10px; font-size: 13px; border-color: #fff3d6; color: #fff3d6; }
+  .stack .crate { margin: 0; cursor: default; }
+  h3 { margin: 0 0 8px; font-size: 15px; }
+</style>
+<section class="board" id="stage">
+  <div class="station-tag">Station 4 · Crate Stack</div>
+  <h1>The Crate Stack</h1>
+</section>
+<script>
+(function () {
+  var P = Course.P, I = P.ids, E = Course.el, stage = Course.stage(), placed = [];
+  stage.appendChild(E("p", { text: P.rule + " Drag each crate onto the stack, or use its \"Place on stack\" button. Then seal the stack." }));
+  var pile = E("div", { class: "pile " + I.a, id: I.b }, [E("h3", { text: "Crates on the sea floor" })]);
+  var stack = E("div", { class: "stack " + I.c, id: I.d, "aria-label": "Stack (bottom first)" });
+  var seal = E("button", { id: I.e, class: "btn go " + I.f, type: "button", text: "Seal the stack", disabled: true, on: function () {
+    Course.clear(placed.join(",")).then(function (d) { if (!d) reset(); });
+  } });
+  var undo = E("button", { id: I.g, class: "btn " + I.h, type: "button", text: "Restack from scratch", on: function () { reset(); } });
+  var place = function (c, node) {
+    if (placed.indexOf(c.id) >= 0) return;
+    placed.push(c.id);
+    stack.appendChild(E("div", { class: "crate" }, [E("span", { text: (placed.length) + ". " + c.name + " · " + c.kg + " kg" })]));
+    node.remove();
+    seal.disabled = placed.length !== P.crates.length;
+  };
+  var draw = function () {
+    P.crates.forEach(function (c) {
+      var node = E("div", { class: "crate " + c.id, draggable: "true", "data-kg": c.kg }, [E("span", { text: c.name + " · " + c.kg + " kg" })]);
+      node.appendChild(E("button", { type: "button", class: "btn", text: "Place on stack", "aria-label": "Place " + c.name + " (" + c.kg + " kg) on stack", on: function () { place(c, node); } }));
+      node.addEventListener("dragstart", function (ev) { ev.dataTransfer.setData("text/plain", c.id); });
+      node._crate = c;
+      pile.appendChild(node);
+    });
+  };
+  var reset = function () {
+    placed = []; stack.innerHTML = ""; seal.disabled = true;
+    Array.prototype.slice.call(pile.querySelectorAll(".crate")).forEach(function (n) { n.remove(); });
+    draw();
+  };
+  stack.addEventListener("dragover", function (ev) { ev.preventDefault(); stack.classList.add("over"); });
+  stack.addEventListener("dragleave", function () { stack.classList.remove("over"); });
+  stack.addEventListener("drop", function (ev) {
+    ev.preventDefault(); stack.classList.remove("over");
+    var id = ev.dataTransfer.getData("text/plain");
+    var node = Array.prototype.slice.call(pile.querySelectorAll(".crate")).filter(function (n) { return n._crate && n._crate.id === id; })[0];
+    if (node) place(node._crate, node);
+  });
+  stage.appendChild(E("div", { class: "dock" }, [pile, E("div", {}, [E("h3", { text: "Stack (bottom first)" }), stack])]));
+  stage.appendChild(E("div", { class: "row" }, [seal, undo]));
+  draw();
+})();
+</script>

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}} — The Kelp Forest Circuit</title>
+<script id="course-config" type="application/json">{{CONFIG}}</script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Trebuchet MS", "Lucida Grande", sans-serif; color: #e9fbf6; min-height: 100vh;
+    background: #04303d radial-gradient(ellipse at 50% -10%, #0d6b73 0, #04303d 55%, #021a24 100%) fixed; }
+  header.sign { display: flex; justify-content: space-between; align-items: center; padding: 12px 28px; color: #e9fbf6;
+    background: #0a4a3a; border-bottom: 5px solid #2e8b57; }
+  header.sign small { display: block; font-family: monospace; font-size: 11px; letter-spacing: .18em; opacity: .85; }
+  header.sign strong { font-size: 20px; letter-spacing: .1em; }
+  #timer { font-family: monospace; font-size: 14px; background: #021a24; padding: 6px 10px; border-radius: 20px; border: 1px solid #2e8b57; }
+  #course-map { display: flex; gap: 6px; padding: 12px 28px; flex-wrap: wrap; background: rgba(2,26,36,.55); }
+  .post { font-family: monospace; font-size: 12px; background: #0f5560; color: #bfeee4; padding: 5px 10px 5px 6px; border-radius: 20px;
+    display: inline-flex; gap: 6px; align-items: center; }
+  .post b { background: #021a24; color: #7cf5e4; border-radius: 50%; width: 18px; height: 18px; display: inline-grid; place-items: center; font-size: 11px; }
+  .post.done { background: #2e8b57; color: #fff; } .post.here { background: #ff7f6e; color: #021a24; }
+  main { max-width: 980px; margin: 0 auto; padding: 22px 28px 48px; }
+  #toast { min-height: 26px; margin-bottom: 10px; font-family: monospace; font-size: 14px; font-weight: bold; color: #fff; }
+  #toast:not(:empty) { background: #c2410c; padding: 6px 12px; border-radius: 8px; display: inline-block; }
+  .board { background: rgba(6,58,70,.92); padding: 22px 26px; border-radius: 18px; border: 2px solid #2e8b57; box-shadow: 0 0 0 6px rgba(46,139,87,.18), 0 18px 40px rgba(0,0,0,.35); }
+  .station-tag { font-family: monospace; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: #ffb4a8; }
+  h1 { margin: 4px 0 8px; font-size: 30px; color: #fff; }
+  p { line-height: 1.55; margin: 6px 0 12px; }
+  button, select, input { font-family: inherit; font-size: 16px; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: .5; }
+  .btn { display: inline-block; padding: 11px 20px; border-radius: 999px; border: 2px solid #7cf5e4; background: transparent; color: #e9fbf6; }
+  .btn.go { background: #2e8b57; border-color: #2e8b57; color: #fff; box-shadow: 0 4px 0 #165a36; }
+  .btn.flashy { background: #ffd23f; border-color: #ffd23f; color: #021a24; font-weight: bold; box-shadow: 0 4px 0 #a07f10; }
+  .btn.quiet { border: 0; text-decoration: underline; font-size: 14px; padding: 6px 8px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
+  label.f { display: grid; gap: 6px; font-size: 14px; }
+  select, input[type=text] { padding: 9px 12px; border-radius: 10px; border: 2px solid #2e8b57; background: #021a24; color: #e9fbf6; min-width: 220px; }
+  .notice { border-color: #ff7f6e; }
+</style>
+</head>
+<body data-station="{{STATION}}" data-decoys="0">
+<header class="sign">
+  <div><small>STEPS OF EXECUTION · OBSTACLE COURSE 2</small><strong>THE KELP FOREST CIRCUIT</strong></div>
+  <div id="timer">00:00</div>
+</header>
+<nav id="course-map" aria-label="Course map"></nav>
+<script>
+window.Course = (function () {
+  var cfg = JSON.parse(document.getElementById("course-config").textContent);
+  var busy = false;
+  var say = function (msg) { document.getElementById("toast").textContent = msg; };
+  var post = function (path, answer) {
+    return fetch("/api/course-attempts/" + cfg.attempt + path, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ station: cfg.station, nonce: cfg.nonce, answer: answer == null ? null : String(answer) })
+    }).then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.detail || "Request failed"); return d; }); });
+  };
+  var map = function () {
+    document.getElementById("course-map").innerHTML = cfg.order.map(function (s, i) {
+      var cls = cfg.cleared.indexOf(s) >= 0 ? "done" : i === cfg.index ? "here" : "";
+      return '<span class="post ' + cls + '"><b>' + (i + 1) + "</b>" + cfg.names[i] + "</span>";
+    }).join("");
+  };
+  map();
+  document.body.dataset.decoys = String(cfg.decoys);
+  if (cfg.started_at) {
+    var t0 = Date.parse(cfg.started_at), tick = function () {
+      var s = Math.max(0, Math.floor((Date.now() - t0) / 1000));
+      document.getElementById("timer").textContent = String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+    };
+    tick(); setInterval(tick, 1000);
+  }
+  var el = function (tag, props, kids) {
+    var e = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) {
+      var v = props[k];
+      if (k === "text") e.textContent = v; else if (k === "on") e.addEventListener("click", v);
+      else if (k === "class") e.className = v; else if (k === "disabled") e.disabled = !!v; else e.setAttribute(k, v);
+    });
+    (kids || []).forEach(function (c) { if (c) e.appendChild(c); });
+    return e;
+  };
+  return {
+    cfg: cfg, say: say, el: el, P: cfg.puzzle || {},
+    stage: function () { return document.getElementById("stage"); },
+    clear: function (answer) {
+      if (busy) return Promise.resolve(null);
+      busy = true;
+      return post("/clear", answer).then(function (d) {
+        if (d.next_path) { location.href = d.next_path; } else { cfg.cleared.push(cfg.station); map(); busy = false; }
+        return d;
+      }).catch(function (e) {
+        busy = false; say(e.message);
+        cfg.decoys += 1; document.body.dataset.decoys = String(cfg.decoys);
+        return null;
+      });
+    },
+    decoy: function (msg) {
+      return post("/decoy").then(function (d) {
+        document.body.dataset.decoys = String(d.decoys);
+        say("TRAP! " + msg + " (decoys hit: " + d.decoys + ")");
+      }).catch(function (e) { say(e.message); });
+    }
+  };
+})();
+</script>
+<main>
+  <div id="toast" role="alert"></div>
+  {{BODY}}
+</main>
+</body>
+</html>

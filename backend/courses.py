@@ -2,6 +2,8 @@ import html
 import json
 from pathlib import Path
 
+from kelp import puzzle
+
 COURSE_DIR = Path(__file__).parent / "courses"
 
 COURSES = {
@@ -18,8 +20,29 @@ COURSES = {
             {"id": "finish", "name": "Finish Flag", "obstacle": "Server-issued success code"},
         ],
         "default_goal": "Clear every station of the obstacle course in order and report the success code shown at the finish flag.",
-    }
+        "max_steps": 25, "timeout_s": 90, "theme": "tidepool",
+    },
+    "kelp-2": {
+        "id": "kelp-2",
+        "name": "Obstacle Course 2 — The Kelp Forest Circuit",
+        "stations": [
+            {"id": "entry", "name": "Kelp Gate", "obstacle": "A pop-up offer ambushes you; dismiss it without accepting"},
+            {"id": "current", "name": "The Current", "obstacle": "Infinite-scroll stream; only one tagged buoy is yours"},
+            {"id": "maze", "name": "Kelp Maze", "obstacle": "Chained dropdowns whose options depend on each other"},
+            {"id": "crates", "name": "Crate Stack", "obstacle": "Drag-and-drop crates in weight order (button fallback)"},
+            {"id": "tide", "name": "Tide Gate", "obstacle": "Timed gate that only opens on the tide"},
+            {"id": "cave", "name": "Iframe Cave", "obstacle": "The password is carved inside an embedded frame"},
+            {"id": "lookalike", "name": "Mirror Shoal", "obstacle": "Spot the one real button among look-alikes"},
+            {"id": "finish", "name": "Surface Buoy", "obstacle": "Server-issued success code"},
+        ],
+        "default_goal": "Clear every station of the Kelp Forest Circuit in order (read each page's instructions; wording and layout change every attempt) and report the success code shown at the surface buoy.",
+        "max_steps": 45, "timeout_s": 240, "theme": "kelp",
+    },
 }
+
+
+def expected_answer(course_id: str, seed: str, station: str):
+    return puzzle(seed, station)[1] if course_id == "kelp-2" else None
 
 
 def station_ids(course_id: str) -> list[str]:
@@ -43,6 +66,8 @@ def render_station(course_id: str, station: str, attempt) -> str:
         "names": [s["name"] for s in course["stations"]], "cleared": attempt.cleared, "nonce": attempt.nonces[station],
         "decoys": attempt.decoys, "started_at": attempt.started_at, "code": attempt.code if station == order[-1] else None,
     }
+    if course_id == "kelp-2":
+        config["puzzle"] = puzzle(attempt.seed, station)[0]
     body = (COURSE_DIR / course_id / f"{station}.html").read_text()
     return _page(course_id, station, course["stations"][index]["name"], body, config)
 

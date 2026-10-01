@@ -53,7 +53,7 @@ function Back({ look, card }) {
         {!card?.history?.length && <li>No runs recorded yet.</li>}
       </ol>
       <h4><Sparkles size={13} /> Memory highlights</h4>
-      <ul className="cc-memory">{(card?.memory || []).map(m => <li key={m}>{m}</li>)}{!card?.memory?.length && <li>Nothing learned yet.</li>}</ul>
+      <ul className="cc-memory">{(card?.memory || []).map((m, i) => <li key={i}>{m}</li>)}{!card?.memory?.length && <li>Nothing learned yet.</li>}</ul>
     </div>
   );
 }

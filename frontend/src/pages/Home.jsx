@@ -6,11 +6,12 @@ import Crab from "../components/Crab";
 import { Badge, Card, Page } from "../components/ui";
 import { api } from "../api";
 import CrabCard, { useCards } from "../components/CrabCard";
+import HeadToHead from "../components/HeadToHead";
 
 const STEPS = [
   [Wrench, "Build your crab", "Name it, color it, give it skills, a personality and a system prompt."],
   [KeyRound, "Bring your own keys", "Your Gemini, OpenAI, Anthropic, OpenRouter and Tavily keys stay encrypted and are used only for your runs."],
-  [Swords, "Race the course", "A real Chromium browser runs your crab through seven physical-style stations."],
+  [Swords, "Race the courses", "A real Chromium browser runs your crab through the Tidepool Gauntlet or the reshuffling Kelp Forest Circuit."],
   [Flag, "Earn a verified code", "The finish flag issues a server-side code. Only a matching code lands on the leaderboard."],
 ];
 
@@ -90,6 +91,7 @@ export default function Home() {
         ))}
       </section>
       <Carousel />
+      <HeadToHead compact />
       <section>
         <h2 className="section-title">Champion gallery</h2>
         <div className="card-grid">

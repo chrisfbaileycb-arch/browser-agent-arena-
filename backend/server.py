@@ -18,12 +18,13 @@ from pydantic import BaseModel, Field  # noqa: E402
 from starlette.middleware.cors import CORSMiddleware  # noqa: E402
 
 from adapters import ADAPTERS  # noqa: E402
-from arena_api import public_router, relay_profile, router as arena_router  # noqa: E402
+from arena_api import check_squad_keys, public_router, relay_profile, router as arena_router  # noqa: E402
+from h2h import router as h2h_router  # noqa: E402
 from auth import current_user, is_pro, optional_user, router as auth_router, seed_users  # noqa: E402
 from billing import router as billing_router  # noqa: E402
 from course_api import router as course_router  # noqa: E402
 from course_store import course_exists, create_attempt  # noqa: E402
-from courses import COURSES  # noqa: E402
+from courses import COURSES, station_ids  # noqa: E402
 from db import client, db  # noqa: E402
 from jev import jev_status  # noqa: E402
 from endpoints import router as endpoints_router  # noqa: E402
@@ -86,12 +87,10 @@ async def start_run(user: dict, body: RunCreate, public: bool = False, champion_
         raise HTTPException(402, "Champion agent runs need the Pro plan.")
     profile = {}
     if adapter.id == "relay":
-        profile = await relay_profile(user)
-        for leg_provider in {leg.get("provider") or "gemini" for leg in profile["legs"]}:
-            try:
-                await resolve_key(user, leg_provider)
-            except KeyMissing as exc:
-                raise HTTPException(412, str(exc))
+        if not body.course_id:
+            raise HTTPException(422, "Squad Relay runs only on the hosted obstacle courses.")
+        profile = await relay_profile(user, body.course_id)
+        await check_squad_keys(user, profile)
     elif body.crab_id:
         crab = await db.crabs.find_one({"_id": to_oid(body.crab_id), "$or": [{"user_id": str(user["_id"])}, {"is_champion": True}]})
         if not crab:
@@ -112,7 +111,8 @@ async def start_run(user: dict, body: RunCreate, public: bool = False, champion_
     model_name = profile.get("model") or adapter.info().get("model", "")
     run = Run(kind="course" if body.course_id else "url", adapter=adapter.id, user_id=str(user["_id"]), crab_id=body.crab_id, profile=profile,
               is_public=public, champion_label=champion_label, assertions=body.assertions, course_id=body.course_id, target_url="",
-              display_url="", goal="", max_steps=MAX_STEPS, timeout_s=TIMEOUT_S, created_at=datetime.now(timezone.utc).isoformat(),
+              display_url="", goal="", max_steps=COURSES.get(body.course_id or "", {}).get("max_steps", MAX_STEPS),
+              timeout_s=COURSES.get(body.course_id or "", {}).get("timeout_s", TIMEOUT_S), created_at=datetime.now(timezone.utc).isoformat(),
               model=f"{provider}/{model_name}".rstrip("/") if provider else "")
     if body.course_id:
         if not course_exists(body.course_id):
@@ -129,7 +129,7 @@ async def start_run(user: dict, body: RunCreate, public: bool = False, champion_
     run_id = str((await db.runs.insert_one(run.to_mongo())).inserted_id)
     if body.course_id:
         attempt = await create_attempt(db, body.course_id, f"run:{adapter.id}", run_id, str(user["_id"]))
-        path = f"/api/courses/{body.course_id}/start?a={attempt.id}"
+        path = f"/api/courses/{body.course_id}/{station_ids(body.course_id)[0]}?a={attempt.id}"
         await db.runs.update_one({"_id": ObjectId(run_id)}, {"$set": {"attempt_id": attempt.id, "target_url": INTERNAL_BASE_URL + path, "display_url": path}})
     task = asyncio.create_task(execute_run(db, run_id))
     TASKS.add(task)
@@ -205,7 +205,7 @@ async def get_screenshot(run_id: str, name: str, user: Optional[dict] = Depends(
     return FileResponse(path, media_type="image/jpeg")
 
 
-for r in (api, arena_router, public_router, auth_router, keys_router, endpoints_router, billing_router, course_router, platform_router, workflow_router):
+for r in (api, arena_router, public_router, auth_router, keys_router, endpoints_router, billing_router, course_router, platform_router, workflow_router, h2h_router):
     app.include_router(r)
 @app.middleware("http")
 async def json_errors(request, call_next):
@@ -234,6 +234,8 @@ async def startup():
     await db.user_keys.create_index([("user_id", 1), ("provider", 1)], unique=True)
     await db.course_attempts.create_index([("course_id", 1), ("verified", 1)])
     await db.course_attempts.create_index([("user_id", 1), ("created_at", -1)])
+    await db.course_attempts.create_index([("course_id", 1), ("agent_kind", 1)])
+    await db.runs.create_index([("course_id", 1), ("adapter", 1), ("status", 1)])
     admin = await db.users.find_one({"email": os.environ["ADMIN_EMAIL"]})
     for name, provider, model, color, accent, accessory, personality in CHAMPIONS:
         await db.crabs.update_one({"name": name, "is_champion": True}, {"$setOnInsert": {

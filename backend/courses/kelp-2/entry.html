@@ -1,0 +1,25 @@
+<style>
+  .overlay { position: fixed; inset: 0; background: rgba(2,16,24,.78); display: grid; place-items: center; z-index: 50; }
+  .modal { background: #ffd23f; color: #021a24; max-width: 460px; padding: 26px; border-radius: 22px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .modal h2 { margin: 0 0 8px; font-size: 26px; }
+  .modal .btn { border-color: #021a24; color: #021a24; }
+  .modal .btn.flashy { background: #ff3da5; border-color: #ff3da5; color: #fff; box-shadow: 0 4px 0 #9b1660; font-size: 19px; }
+</style>
+<section class="board" id="stage">
+  <div class="station-tag">Station 1 · Kelp Gate</div>
+  <h1>The Kelp Gate</h1>
+  <p>Eight stations wind through the Kelp Forest Circuit. Wording, layout and button order change on every attempt, so read each page. A pushy vendor guards the gate: close the offer <b>without accepting it</b>, then enter the forest.</p>
+</section>
+<script>
+(function () {
+  var P = Course.P, I = P.ids, E = Course.el;
+  Course.stage().appendChild(E("div", { class: "row" }, [E("button", { id: I.a, class: "btn go " + I.b, type: "button", text: P.enter, on: function () { Course.clear(); } })]));
+  var ov;
+  var bait = E("button", { id: I.c, class: "btn flashy " + I.d, type: "button", text: P.bait, on: function () { Course.decoy("Accepting the offer is a trap."); } });
+  var dismiss = E("button", { id: I.e, class: "btn quiet " + I.f, type: "button", text: P.dismiss, on: function () { ov.remove(); } });
+  ov = E("div", { class: "overlay " + I.g, id: I.h }, [E("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-label": P.title }, [
+    E("h2", { text: P.title }), E("p", { text: "Unlimited glow-snacks for the whole circuit! Accept now and we'll swim you straight to the finish." }),
+    E("div", { class: "row" }, P.bait_first ? [bait, dismiss] : [dismiss, bait])])]);
+  document.body.appendChild(ov);
+})();
+</script>

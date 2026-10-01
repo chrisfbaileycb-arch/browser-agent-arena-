@@ -5,10 +5,10 @@ import Crab from "./Crab";
 import { api, asset } from "../api";
 import { Badge, Btn } from "./ui";
 
-const STATIONS = ["start", "wall", "doors", "rope", "beam", "tunnel", "finish"];
-const NAMES = ["Start", "Wall", "Doors", "Rope", "Beam", "Tunnel", "Finish"];
+import { courseOf, stationOf } from "./courses";
+
 export const LIVE = ["queued", "running"];
-export const stationOf = url => Math.max(0, STATIONS.findIndex(s => (url || "").includes(`/${s}?`) || (url || "").endsWith(`/${s}`)));
+export { stationOf };
 
 export function useRun(runId, base = "/runs") {
   const [run, setRun] = useState(null);
@@ -27,9 +27,8 @@ export function useRun(runId, base = "/runs") {
   return { run, error };
 }
 
-const ORDER = ["start", "wall", "doors", "rope", "beam", "tunnel", "finish"];
-
 function RelayLegs({ run }) {
+  const ORDER = courseOf(run.course_id).stations;
   return (
     <div className="relay-legs" data-testid="relay-legs">
       <h4>Relay legs</h4>
@@ -65,14 +64,15 @@ export function moodFor(run, step, isLast) {
 function Track({ run, index }) {
   const step = run.steps[index];
   const isLast = index >= run.steps.length - 1;
-  const at = run.status === "succeeded" && isLast ? 6 : stationOf(step?.url);
+  const { names } = courseOf(run.course_id), last = names.length - 1;
+  const at = run.status === "succeeded" && isLast ? last : stationOf(step?.url, run.course_id);
   const mood = moodFor(run, step, isLast);
   const p = run.profile || {};
   return (
     <div className="track" data-testid="course-track">
       <div className="track-line" />
-      {NAMES.map((n, i) => <div key={n} className={`station-dot ${i < at ? "cleared" : ""} ${i === at ? "here" : ""}`} style={{ left: `${(i / 6) * 100}%` }}><i />{n}</div>)}
-      <motion.div className="track-crab" data-testid="track-crab" data-mood={mood} animate={{ left: `${(at / 6) * 100}%` }} transition={{ type: "spring", stiffness: 60, damping: 14 }}>
+      {names.map((n, i) => <div key={n} className={`station-dot ${i < at ? "cleared" : ""} ${i === at ? "here" : ""}`} style={{ left: `${(i / last) * 100}%` }}><i />{n}</div>)}
+      <motion.div className="track-crab" data-testid="track-crab" data-mood={mood} animate={{ left: `${(at / last) * 100}%` }} transition={{ type: "spring", stiffness: 60, damping: 14 }}>
         <Crab size={58} mood={mood} color={p.color || "#FF5A4E"} accent={p.accent || "#FFD23F"} accessory={p.accessory || "none"} />
       </motion.div>
     </div>

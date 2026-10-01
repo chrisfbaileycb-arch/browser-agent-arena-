@@ -1,0 +1,28 @@
+<style>
+  .gate { margin: 14px 0; padding: 18px; border-radius: 14px; font-family: monospace; font-size: 20px; text-align: center; transition: background-color .3s; }
+  .gate.open { background: #2e8b57; color: #fff; } .gate.shut { background: #4a1d1d; color: #ffb4a8; }
+</style>
+<section class="board" id="stage">
+  <div class="station-tag">Station 5 · Tide Gate</div>
+  <h1>The Tide Gate</h1>
+  <p>The gate only opens when the tide rolls in, for a few seconds at a time. Wait for it to open, then swim through. Forcing it never works.</p>
+</section>
+<script>
+(function () {
+  var P = Course.P, I = P.ids, E = Course.el, stage = Course.stage();
+  var status = E("div", { class: "gate " + I.a, id: I.b, role: "status", "aria-live": "polite" });
+  var swim = E("button", { id: I.c, class: "btn go " + I.d, type: "button", text: P.swim, disabled: true, on: function () { if (isOpen()) Course.clear(); } });
+  var bait = E("button", { id: I.e, class: "btn flashy " + I.f, type: "button", text: P.bait, on: function () { Course.decoy("The gate can't be forced."); } });
+  var phase = function () { return (Date.now() / 1000 + P.offset) % P.cycle_s; };
+  var isOpen = function () { return phase() < P.open_s; };
+  var tick = function () {
+    var p = phase(), open = p < P.open_s;
+    status.className = "gate " + I.a + (open ? " open" : " shut");
+    status.textContent = open ? "TIDE GATE: OPEN · closes in " + Math.ceil(P.open_s - p) + "s" : "TIDE GATE: CLOSED · opens in " + Math.ceil(P.cycle_s - p) + "s";
+    swim.disabled = !open;
+  };
+  stage.appendChild(status);
+  stage.appendChild(E("div", { class: "row" }, P.offset % 2 ? [swim, bait] : [bait, swim]));
+  tick(); setInterval(tick, 200);
+})();
+</script>

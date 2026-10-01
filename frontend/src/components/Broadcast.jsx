@@ -9,8 +9,7 @@ import { post } from "../api";
 import { useAuth } from "../auth";
 
 const Stadium3D = lazy(() => import("./Stadium3D"));
-const STATIONS = ["start", "wall", "doors", "rope", "beam", "tunnel", "finish"];
-const CLEARED = { start: "OFF THE LINE!", wall: "WALL CLEARED!", doors: "DECOY DODGED!", rope: "ROPE CLIMBED!", beam: "BEAM BALANCED!", tunnel: "TUNNEL CRAWLED!" };
+import { courseOf } from "./courses";
 const fmt = s => `${String(Math.floor(s / 60)).padStart(2, "0")}:${(s % 60).toFixed(1).padStart(4, "0")}`;
 
 // Live runs follow the newest step; finished runs replay their real trace once.
@@ -29,12 +28,13 @@ function usePlayhead(run) {
 
 function racerOf(run, i, now) {
   if (!run) return null;
+  const last = courseOf(run.course_id).stations.length - 1;
   const step = run.steps[i], isLast = i >= run.steps.length - 1, finished = run.status === "succeeded" && isLast;
   const live = LIVE.includes(run.status), start = Date.parse(run.started_at || run.created_at);
   const clock = live ? (now - start) / 1000 : step ? (Date.parse(step.at) - start) / 1000 : 0;
   const relay = run.adapter === "relay", legs = run.profile?.legs || [];
   const leg = relay ? legs.find(l => l.role === step?.role) || legs[0] : null;
-  return { id: run.id, run, step, stepN: step?.n || 0, at: finished ? 6 : stationOf(step?.url), mood: moodFor(run, step, isLast), finished, live,
+  return { id: run.id, run, step, stepN: step?.n || 0, at: finished ? last : stationOf(step?.url, run.course_id), mood: moodFor(run, step, isLast), finished, live,
     relay, leg: relay ? step?.leg ?? null : null, look: leg || run.profile || {},
     name: leg ? `Relay · ${leg.name}` : run.profile?.name || run.champion_label || "Crab", clock: Math.max(0, clock), score: isLast ? run.score?.total : null };
 }
@@ -51,23 +51,24 @@ function FxOverlay({ reaction }) {
   );
 }
 
-function Side({ r, right }) {
+function Side({ r, right, total }) {
   return (
     <div className={`sb-side ${right ? "right" : ""}`} data-testid={`scoreboard-${right ? "b" : "a"}`}>
       <div className="sb-crest" style={{ "--c": r.look.color || "#FF5A4E" }}><Crab size={44} color={r.look.color} accent={r.look.accent} accessory={r.look.accessory} mood={r.mood} /></div>
-      <div><b>{r.name}</b><small>{r.live ? "LIVE" : r.finished ? "FINISHED" : "REPLAY"} · {r.finished ? 7 : r.at}/7 stations</small></div>
+      <div><b>{r.name}</b><small>{r.live ? "LIVE" : r.finished ? "FINISHED" : "REPLAY"} · {r.finished ? total : r.at}/{total} stations</small></div>
       <strong className="sb-score">{r.score ?? "—"}</strong>
     </div>
   );
 }
 
-function Minimap({ racers }) {
+function Minimap({ racers, course }) {
+  const STATIONS = course.stations, gap = 200 / (STATIONS.length - 1);
   return (
     <svg className="minimap" viewBox="0 0 240 70" data-testid="minimap">
       <rect x="1" y="1" width="238" height="68" rx="12" />
       <line x1="20" y1="35" x2="220" y2="35" />
-      {STATIONS.map((s, i) => <g key={s}><circle cx={20 + i * 33.3} cy="35" r="4" /><text x={20 + i * 33.3} y="60">{s[0].toUpperCase()}</text></g>)}
-      {racers.map((r, k) => <circle key={r.id} className="dot" cx={20 + r.at * 33.3} cy={k ? 44 : 26} r="6.5" style={{ fill: r.look.color || "#FF5A4E" }} />)}
+      {STATIONS.map((s, i) => <g key={s}><circle cx={20 + i * gap} cy="35" r="4" /><text x={20 + i * gap} y="60">{s[0].toUpperCase()}</text></g>)}
+      {racers.map((r, k) => <circle key={r.id} className="dot" cx={20 + r.at * gap} cy={k ? 44 : 26} r="6.5" style={{ fill: r.look.color || "#FF5A4E" }} />)}
     </svg>
   );
 }
@@ -96,7 +97,7 @@ function CoachBar({ racers }) {
   );
 }
 
-export default function Broadcast({ runIds, title = "Tidepool Gauntlet", base = "/runs", spectator = false }) {
+export default function Broadcast({ runIds, title, base = "/runs", spectator = false }) {
   const { run: a } = useRun(runIds[0], base);
   const { run: b } = useRun(runIds[1], base);
   const [ia, setIa] = usePlayhead(a);
@@ -111,6 +112,7 @@ export default function Broadcast({ runIds, title = "Tidepool Gauntlet", base = 
   playRef.current = sfx.play;
   const prev = useRef({});
   const racers = [racerOf(a, ia, now), racerOf(b, ib, now)].filter(Boolean);
+  const course = courseOf(a?.course_id);
   const live = racers.some(r => r.live);
   useEffect(() => { if (!live) return undefined; const t = setInterval(() => setNow(Date.now()), 200); return () => clearInterval(t); }, [live]);
   const key = racers.map(r => `${r.id}:${r.at}:${r.stepN}:${r.finished}:${r.leg}`).join("|");
@@ -126,7 +128,7 @@ export default function Broadcast({ runIds, title = "Tidepool Gauntlet", base = 
     racers.forEach(r => {
       const p = prev.current[r.id] || { at: r.at, n: r.stepN, finished: r.finished, leg: r.leg };
       if (r.relay && r.leg != null && p.leg != null && r.leg !== p.leg) add(`${r.name} · BATON PASSED!`, "baton", r.look.color);
-      if (r.at > p.at && r.at <= 6) add(`${r.name} · ${CLEARED[STATIONS[r.at - 1]]}`, "good", r.look.color);
+      if (r.at > p.at && r.at < course.stations.length) add(`${r.name} · ${course.cleared[course.stations[r.at - 1]] || "STATION CLEARED!"}`, "good", r.look.color);
       if (r.stepN !== p.n && r.step && !r.step.ok) add(`${r.name} · STUMBLE!`, "bad", r.look.color);
       if (r.finished && !p.finished) add(`${r.name} · FINISH · CODE VERIFIED!`, "gold", r.look.color);
       prev.current[r.id] = { at: r.at, n: r.stepN, finished: r.finished, leg: r.leg };
@@ -135,13 +137,13 @@ export default function Broadcast({ runIds, title = "Tidepool Gauntlet", base = 
   const clock = useMemo(() => Math.max(0, ...racers.map(r => r.clock)), [racers]);
   if (!racers.length) return <div className="broadcast shimmer" data-testid="broadcast-loading">Warming up the stadium…</div>;
   return (
-    <section className="broadcast" data-testid="broadcast" data-reaction={reaction?.kind || ""} data-quality={quality.level} data-camera={camMode}>
-      {WEBGL ? <Suspense fallback={<div className="stadium-flat">Loading stadium…</div>}><Stadium3D racers={racers} reaction={reaction} quality={quality} camMode={camMode} replay={!live} /></Suspense>
+    <section className={`broadcast theme-${course.theme}`} data-testid="broadcast" data-course={course.id} data-reaction={reaction?.kind || ""} data-quality={quality.level} data-camera={camMode}>
+      {WEBGL ? <Suspense fallback={<div className="stadium-flat">Loading stadium…</div>}><Stadium3D racers={racers} reaction={reaction} quality={quality} camMode={camMode} replay={!live} course={course} /></Suspense>
         : <><div className="stadium-flat">3D stadium unavailable on this device — follow the minimap.</div><FxOverlay reaction={reaction} /></>}
       <div className="scoreboard">
-        <Side r={racers[0]} />
-        <div className="sb-clock"><small>{title}</small><strong data-testid="run-timer">{fmt(clock)}</strong>{live && <i className="live-pill">LIVE</i>}</div>
-        {racers[1] ? <Side r={racers[1]} right /> : <div className="sb-side right empty">Solo run</div>}
+        <Side r={racers[0]} total={course.stations.length} />
+        <div className="sb-clock"><small>{title || course.short}</small><strong data-testid="run-timer">{fmt(clock)}</strong>{live && <i className="live-pill">LIVE</i>}</div>
+        {racers[1] ? <Side r={racers[1]} right total={course.stations.length} /> : <div className="sb-side right empty">Solo run</div>}
       </div>
       <div className="callouts" aria-live="polite">
         <AnimatePresence>{calls.map(c => (
@@ -149,7 +151,7 @@ export default function Broadcast({ runIds, title = "Tidepool Gauntlet", base = 
         ))}</AnimatePresence>
       </div>
       {!spectator && <CoachBar racers={racers} />}
-      <Minimap racers={racers} />
+      <Minimap racers={racers} course={course} />
       <div className="hud-tools">
         {WEBGL && (
           <>

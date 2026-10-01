@@ -83,6 +83,7 @@ class CourseAttempt(BaseDocument):
     recording_url: Optional[str] = None
     run_id: Optional[str] = None
     agent_kind: Optional[str] = None
+    invite_id: Optional[str] = None
     expires_at: Optional[str] = None
     reported_elapsed_s: Optional[float] = None
     failed_submits: int = 0

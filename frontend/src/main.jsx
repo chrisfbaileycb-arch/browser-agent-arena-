@@ -17,6 +17,7 @@ import Keys from "./pages/Keys";
 import Pricing, { PaymentSuccess } from "./pages/Pricing";
 import Login from "./pages/Login";
 import PublicTournament from "./pages/PublicTournament";
+import Invite from "./pages/Invite";
 import "./styles.css";
 
 function Protected({ children }) {
@@ -53,6 +54,7 @@ function AppRoutes() {
           <Route path="/payment/success" element={guard(<PaymentSuccess />)} />
           <Route path="/login" element={<GuestOnly><Login /></GuestOnly>} />
           <Route path="/t/:slug" element={<PublicTournament />} />
+          <Route path="/c/:slug" element={<Invite />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AnimatePresence>

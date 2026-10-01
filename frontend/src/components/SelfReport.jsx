@@ -4,6 +4,7 @@ import { api, BACKEND, post } from "../api";
 import { useAuth } from "../auth";
 import { Badge, Btn, Card, Notice, SignInModal } from "./ui";
 import { COURSES } from "./courses";
+import ChallengeInvite from "./ChallengeInvite";
 
 const AGENTS = [["copilot", "Copilot", Bot], ["comet", "Comet", Sparkles], ["other", "Other", Globe]];
 
@@ -102,6 +103,7 @@ export default function SelfReport({ courseId = "obstacle-1" }) {
       )}
       {result && <><Result r={result} /><Btn kind="ghost" onClick={() => { setResult(null); setAttempt(null); }} testId="self-report-again-btn">Run another agent</Btn></>}
       <Notice kind="error" testId="self-report-message">{msg}</Notice>
+      <div className="row"><ChallengeInvite defaultCourse={courseId} defaultKind={kind} testId="self-report-challenge-btn" /></div>
       <SignInModal open={ask} onClose={() => setAsk(false)} why="Sign in to get your own attempt link and a verifiable finish code." />
     </Card>
   );

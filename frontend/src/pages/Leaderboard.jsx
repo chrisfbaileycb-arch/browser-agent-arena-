@@ -6,6 +6,7 @@ import Crab from "../components/Crab";
 import CrabCard, { useCards } from "../components/CrabCard";
 import { Badge, Head, Page } from "../components/ui";
 import HeadToHead from "../components/HeadToHead";
+import LegCompare from "../components/LegCompare";
 import { COURSES, CoursePicker } from "../components/courses";
 
 const MODES = [["", "All"], ["solo", "Solo"], ["relay", "Relay"]];
@@ -53,6 +54,7 @@ export default function Leaderboard() {
       </ol>
       {rows && !rows.length && <p className="muted" data-testid="leaderboard-empty">No finishes match this filter yet.</p>}
       <HeadToHead />
+      <LegCompare />
     </Page>
   );
 }

@@ -10,20 +10,27 @@ import { useAuth } from "../auth";
 
 const Stadium3D = lazy(() => import("./Stadium3D"));
 import { courseOf } from "./courses";
+import LegStrip, { legRange, onLeg } from "./LegStrip";
 const fmt = s => `${String(Math.floor(s / 60)).padStart(2, "0")}:${(s % 60).toFixed(1).padStart(4, "0")}`;
 
 // Live runs follow the newest step; finished runs replay their real trace once.
 function usePlayhead(run) {
   const [i, setI] = useState(0);
+  const [end, setEnd] = useState(null);
   const total = run?.steps.length || 0;
   const live = run && LIVE.includes(run.status);
   useEffect(() => { if (live) setI(Math.max(0, total - 1)); }, [live, total]);
   useEffect(() => {
     if (live || !total) return undefined;
-    const t = setInterval(() => setI(x => Math.min(x + 1, total - 1)), 1300);
+    const t = setInterval(() => setI(x => Math.min(x + 1, end ?? total - 1)), 1300);
     return () => clearInterval(t);
-  }, [live, total, run?.id]);
-  return [i, setI];
+  }, [live, total, run?.id, end]);
+  useEffect(() => onLeg(({ runId, leg }) => {
+    const r = run && runId === run.id && !live && legRange(run, leg);
+    if (r) { setI(r[0]); setEnd(r[1]); }
+  }), [run, live]);
+  const reset = n => { setEnd(null); setI(n); };
+  return [i, reset, end];
 }
 
 function racerOf(run, i, now) {
@@ -100,8 +107,8 @@ function CoachBar({ racers }) {
 export default function Broadcast({ runIds, title, base = "/runs", spectator = false }) {
   const { run: a } = useRun(runIds[0], base);
   const { run: b } = useRun(runIds[1], base);
-  const [ia, setIa] = usePlayhead(a);
-  const [ib, setIb] = usePlayhead(b);
+  const [ia, setIa, endA] = usePlayhead(a);
+  const [ib, setIb, endB] = usePlayhead(b);
   const [now, setNow] = useState(Date.now());
   const [calls, setCalls] = useState([]);
   const [reaction, setReaction] = useState(null);
@@ -167,6 +174,11 @@ export default function Broadcast({ runIds, title, base = "/runs", spectator = f
           {sfx.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
         </button>
       </div>
+      {!live && [[a, ia, endA], [b, ib, endB]].map(([r, i, end], k) => r?.legs?.length > 0 && (
+        <div key={k} className={`broadcast-legs ${k ? "right" : ""}`}>
+          <LegStrip run={r} activeLeg={end != null ? r.steps[i]?.leg : null} testId={`broadcast-legs-${k ? "b" : "a"}`} />
+        </div>
+      ))}
       {!live && <button className="icon-btn replay-btn" onClick={() => { setIa(0); setIb(0); prev.current = {}; }} aria-label="Replay broadcast" data-testid="broadcast-replay-btn"><RotateCcw size={16} /></button>}
     </section>
   );

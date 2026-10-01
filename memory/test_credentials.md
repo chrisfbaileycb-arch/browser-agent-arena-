@@ -4,7 +4,7 @@ Email/password (JWT httpOnly cookies `access_token` + `refresh_token`, Bearer he
 
 | Role | Email | Password | Plan | Notes |
 |---|---|---|---|---|
-| admin | admin@steps.dev | ArenaAdmin!2026 | pro | owns the 3 champion crabs; can POST /api/admin/champion-runs |
+| admin | admin@steps.dev | ArenaAdmin!2026 | pro | role=admin (admin flag = users.role "admin"). Owns the 3 champion crabs; can POST /api/admin/champion-runs and PUT /api/admin/featured {course_id or null} (Course of the Week override, also via the select on Home) |
 | user (free) | free@steps.dev | FreeCrab!2026 | free | 1 execution allowed (runs + workflow runs share quota) |
 | user (pro) | pro@steps.dev | ProCrab!2026 | pro | unlimited runs, exports |
 

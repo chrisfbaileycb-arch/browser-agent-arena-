@@ -41,10 +41,10 @@ def _seconds_between(a: Optional[str], b: Optional[str]) -> Optional[float]:
 
 
 async def create_attempt(db, course_id: str, agent_label: str, run_id: Optional[str] = None, user_id: Optional[str] = None,
-                         agent_kind: Optional[str] = None) -> CourseAttempt:
+                         agent_kind: Optional[str] = None, invite_id: Optional[str] = None) -> CourseAttempt:
     expires = (datetime.now(timezone.utc) + SELF_REPORT_TTL).isoformat() if agent_kind else None
     attempt = CourseAttempt(course_id=course_id, agent_label=agent_label, run_id=run_id, user_id=user_id, created_at=now_iso(),
-                            agent_kind=agent_kind, expires_at=expires, seed=secrets.token_hex(8),
+                            agent_kind=agent_kind, invite_id=invite_id, expires_at=expires, seed=secrets.token_hex(8),
                             nonces={s: secrets.token_urlsafe(8) for s in station_ids(course_id)})
     result = await db.course_attempts.insert_one(attempt.to_mongo())
     attempt.id = str(result.inserted_id)

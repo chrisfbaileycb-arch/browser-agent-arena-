@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 8: tested the new 'Challenge invites', 'Course of the Week', and 'Relay leg replays' batch end-to-end. New pytest suite backend/tests/test_invites_featured_relay.py: 21/21 passing (5 invite-create cases incl. 429 rate limit + 422 kind + 404 course; public landing/is_inviter/card HTML with og+twitter meta/og.png PNG magic; accept flows incl. inviter 409 / friend 201 / idempotent re-accept / revoked 410 / max_uses full 409; usage quota unchanged for free user after self-submitted accept; /invites list shape with counts & friends; DELETE revokes and public status flips to revoked; /featured shape + deterministic weekly rotation + next_rotation_at Monday 00:00 UTC + admin override set/clear with pro 403; relay /relay/legs shape + 404 invalid course + 404 inaccessible run + shared-tournament visibility toggle via POST /tournaments/{id}/share). Frontend verified via Playwright: Home shows cow-name='Kelp Forest Circuit', cow-countdown ticking (3d 20h..), cow-top-0..4 populated with champion rows, cow-replay+cow-race-btn present. Pro's Home h2h-challenge-btn opens challenge-modal; selecting challenge-kind-copilot + challenge-create-btn produces invite-link (/c/<slug>) with invite-copy-btn, invite-share-{x,linkedin,email}. Arena has self-report-challenge-btn and invite-tracker with invite-counts-<slug> for the created invite. Public /c/<slug> page: as inviter -> invite-title/invite-agent/invite-course/invite-time-to-beat + invite-own badge. Anonymous -> invite-login-btn goes to /login with state.from=/c/<slug> and login-invite-note visible, invite-google-btn present. As free user, invite-accept-btn creates attempt and self-report-attempt panel appears with the Copilot agent badge. Admin on Home: cow-admin-select visible; selecting obstacle-1 updates cow-name to 'Tidepool Gauntlet' with cow-override-badge visible; clearing to '' resets to automatic (badge gone). Leaderboard: leg-compare + leg-compare-select present; obstacle-1 shows leg-compare-empty (correct — no shared relay data on obstacle-1); switching to kelp-2 via leg-compare-course-kelp-2 chip shows 3 leg rows from the shared Kelp Relay Cup. Public /t/<slug> share page for Kelp Relay Cup renders 7 relay-leg-* chips and 8 broadcast-legs-* chips (LegStrip + Broadcast integration working on public pages). No critical console errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_invites_featured_relay.py",
+    "/app/test_reports/pytest/invites_featured_relay.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "invites.py accept_invite: the 'is_inviter' 409 is checked BEFORE the open-attempt lookup, so an inviter who already has an invite-id attempt on their own slug will still get 409 (consistent with semantics). Fine. The open_doc re-return is good: idempotent accept across polling is safe.",
+    "relay_legs.visible_query: for each request iterates all shared tournaments (up to 200) and unions all run_a/run_b ids — fine at current scale but will scan + build a potentially large $in list once tournaments grow. Consider caching the shared-run-id set briefly or storing it on the tournament doc.",
+    "invites.py public_invite returns `inviter` as first-name only (safe), but when the inviter's name field contains '@' (seed admin uses 'A rival' fallback). This matches spec; no PII leak.",
+    "featured_course: deterministic rotation uses sorted(COURSES) + weeks since 1970-01-05. If a new course is added mid-week it changes the index for the current week (sort order shifts). Not a bug today (only 2 courses) but worth noting for future course additions.",
+    "LegCompare.jsx empty-state check: `data.items.length < 2` would be more accurate given 'compare 2 legs'; current empty branch triggers only when <1 item exists (hence the kelp-2 shared tournament shows 3 rows, which is correct). On obstacle-1 anon the empty state fires correctly."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_invites_featured_relay.py (new)"
+  ],
+  "success_rate": {"backend": "100% (21/21)", "frontend": "100% core selectors + flows verified"},
+  "test_credentials": "admin@steps.dev / ArenaAdmin!2026, pro@steps.dev / ProCrab!2026, free@steps.dev / FreeCrab!2026 — all used",
+  "seed_data_creation": "Created and cleaned ~5 invites + 1 invite-id attempt during tests (deleted via Mongo in conftest + manual sweep). Featured override reset to automatic (null). Public share enabled for Kelp Relay Cup 6abdb6f48722e638b6321700 (slug persists — tests use it; leave enabled since the prior iteration also used it). Preserved: all champion crabs, kelp-2 champion runs, Kelp Relay Cup tournament.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_invites_featured_relay.py: 21 tests, isolates on in-memory 5/min invite rate limit by sleeping 62s when necessary (two tests include retry). Fixtures scoped at module level so admin/pro/free sessions reuse. Autouse cleanup deletes any invites created today + their invite_id attempts, and nulls settings.featured. LegStrip + Broadcast legs tags visible on /t/<slug> share pages but NOT on /arena by default (user must open a replay chip to render RunPlayer — not a bug). CORS/auth cookies are set but tests use Bearer token from JSON body."
+}

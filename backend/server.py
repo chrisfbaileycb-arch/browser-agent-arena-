@@ -20,6 +20,8 @@ from starlette.middleware.cors import CORSMiddleware  # noqa: E402
 from adapters import ADAPTERS  # noqa: E402
 from arena_api import check_squad_keys, public_router, relay_profile, router as arena_router  # noqa: E402
 from h2h import router as h2h_router  # noqa: E402
+from invites import router as invites_router  # noqa: E402
+from relay_legs import router as relay_legs_router  # noqa: E402
 from auth import current_user, is_pro, optional_user, router as auth_router, seed_users  # noqa: E402
 from billing import router as billing_router  # noqa: E402
 from course_api import router as course_router  # noqa: E402
@@ -205,7 +207,7 @@ async def get_screenshot(run_id: str, name: str, user: Optional[dict] = Depends(
     return FileResponse(path, media_type="image/jpeg")
 
 
-for r in (api, arena_router, public_router, auth_router, keys_router, endpoints_router, billing_router, course_router, platform_router, workflow_router, h2h_router):
+for r in (api, arena_router, public_router, auth_router, keys_router, endpoints_router, billing_router, course_router, platform_router, workflow_router, h2h_router, invites_router, relay_legs_router):
     app.include_router(r)
 @app.middleware("http")
 async def json_errors(request, call_next):
@@ -236,6 +238,9 @@ async def startup():
     await db.course_attempts.create_index([("user_id", 1), ("created_at", -1)])
     await db.course_attempts.create_index([("course_id", 1), ("agent_kind", 1)])
     await db.runs.create_index([("course_id", 1), ("adapter", 1), ("status", 1)])
+    await db.invites.create_index("slug", unique=True)
+    await db.invites.create_index([("user_id", 1), ("created_at", -1)])
+    await db.course_attempts.create_index("invite_id")
     admin = await db.users.find_one({"email": os.environ["ADMIN_EMAIL"]})
     for name, provider, model, color, accent, accessory, personality in CHAMPIONS:
         await db.crabs.update_one({"name": name, "is_champion": True}, {"$setOnInsert": {

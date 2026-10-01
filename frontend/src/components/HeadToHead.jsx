@@ -6,6 +6,7 @@ import { useAuth } from "../auth";
 import Crab from "./Crab";
 import { COURSES, CoursePicker } from "./courses";
 import { Badge } from "./ui";
+import ChallengeInvite from "./ChallengeInvite";
 
 const METRICS = [
   ["best_time_s", "Best time", v => `${v}s`, "low"], ["median_time_s", "Median time", v => `${v}s`, "low"],
@@ -91,6 +92,7 @@ export default function HeadToHead({ compact = false }) {
         </div>
         <Fighter side="b" data={data?.b} mirror />
       </div>
+      <div className="row"><ChallengeInvite defaultCourse={course} defaultKind={["copilot", "comet", "other"].includes(a) ? a : "copilot"} testId="h2h-challenge-btn" /></div>
       <small className="muted">Built only from recorded runs: server-timed harness runs and finish-code-verified self-reported runs. Finish rate = finished ÷ attempts started.</small>
     </section>
   );

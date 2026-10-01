@@ -6,6 +6,7 @@ import { api, asset } from "../api";
 import { Badge, Btn } from "./ui";
 
 import { courseOf, stationOf } from "./courses";
+import LegStrip, { legRange, onLeg } from "./LegStrip";
 
 export const LIVE = ["queued", "running"];
 export { stationOf };
@@ -27,26 +28,12 @@ export function useRun(runId, base = "/runs") {
   return { run, error };
 }
 
-function RelayLegs({ run }) {
-  const ORDER = courseOf(run.course_id).stations;
+function RelayLegs({ run, activeLeg }) {
   return (
     <div className="relay-legs" data-testid="relay-legs">
-      <h4>Relay legs</h4>
+      <h4>Relay legs <small className="muted">· click a leg to replay just that leg</small></h4>
       {run.relay_failure && <p className="notice notice-error" data-testid="relay-failure">{run.relay_failure}</p>}
-      <ol>
-        {run.legs.map(l => {
-          const cleared = Math.max(0, ORDER.indexOf(l.to_station) - ORDER.indexOf(l.from_station)) + (l.status === "finished" ? 1 : 0);
-          return (
-            <li key={l.index} className={`leg leg-${l.status}`} data-testid={`relay-leg-${l.index}`}>
-              <i className="crest" style={{ background: l.color }} />
-              <b>{l.role_name}</b><span>{l.name}</span>
-              <small>{l.from_station} → {l.to_station || "…"}</small>
-              <span className="mono">{l.steps ?? "…"} steps · {l.elapsed_s ?? "…"}s · {Math.max(0, 20 * cleared - 2 * (l.steps || 0))} pts</span>
-              <em>{l.status === "passed" ? "baton passed" : l.status}</em>
-            </li>
-          );
-        })}
-      </ol>
+      <LegStrip run={run} activeLeg={activeLeg} testId="relay-leg" />
     </div>
   );
 }
@@ -84,19 +71,25 @@ export default function RunPlayer({ runId, compact, base }) {
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [follow, setFollow] = useState(true);
+  const [legEnd, setLegEnd] = useState(null);
   const total = run?.steps.length || 0;
   useEffect(() => { if (follow && total) setIndex(total - 1); }, [total, follow]);
   useEffect(() => {
     if (!playing) return;
-    const t = setInterval(() => setIndex(i => { if (i >= total - 1) { setPlaying(false); return i; } return i + 1; }), 1100);
+    const stop = legEnd ?? total - 1;
+    const t = setInterval(() => setIndex(i => { if (i >= stop) { setPlaying(false); return i; } return i + 1; }), 1100);
     return () => clearInterval(t);
-  }, [playing, total]);
+  }, [playing, total, legEnd]);
+  useEffect(() => onLeg(({ runId, leg }) => {
+    const r = run && runId === run.id && !LIVE.includes(run.status) && legRange(run, leg);
+    if (r) { setFollow(false); setIndex(r[0]); setLegEnd(r[1]); setPlaying(true); }
+  }), [run]);
   const step = run?.steps[index];
   const live = run && LIVE.includes(run.status);
   const jevVerdict = useMemo(() => run?.jev?.status === "ok" ? run.jev.answers?.verdict?.choice : null, [run]);
   if (error) return <p className="notice notice-error">{error}</p>;
   if (!run) return <div className="card shimmer" data-testid="run-loading">Loading run…</div>;
-  const go = i => { setFollow(false); setPlaying(false); setIndex(Math.max(0, Math.min(total - 1, i))); };
+  const go = i => { setFollow(false); setPlaying(false); setLegEnd(null); setIndex(Math.max(0, Math.min(total - 1, i))); };
   return (
     <div className={`player card ${compact ? "compact" : ""}`} data-testid={`run-player-${run.id}`}>
       <div className="player-head">
@@ -114,7 +107,7 @@ export default function RunPlayer({ runId, compact, base }) {
           <div className="controls">
             <button className="icon-btn" onClick={() => go(0)} aria-label="Restart" data-testid="replay-restart-btn"><RotateCcw size={16} /></button>
             <button className="icon-btn" onClick={() => go(index - 1)} aria-label="Previous step" data-testid="replay-prev-btn"><ChevronLeft size={16} /></button>
-            <button className="icon-btn" onClick={() => { if (index >= total - 1) setIndex(0); setFollow(false); setPlaying(!playing); }} aria-label="Play or pause" data-testid="replay-play-btn">{playing ? <Pause size={16} /> : <Play size={16} />}</button>
+            <button className="icon-btn" onClick={() => { if (index >= (legEnd ?? total - 1)) { setIndex(0); setLegEnd(null); } setFollow(false); setPlaying(!playing); }} aria-label="Play or pause" data-testid="replay-play-btn">{playing ? <Pause size={16} /> : <Play size={16} />}</button>
             <button className="icon-btn" onClick={() => go(index + 1)} aria-label="Next step" data-testid="replay-next-btn"><ChevronRight size={16} /></button>
             <span className="mono">{total ? index + 1 : 0}/{total}</span>
           </div>
@@ -147,7 +140,7 @@ export default function RunPlayer({ runId, compact, base }) {
           )}
         </div>
       </div>
-      {run.legs?.length > 0 && <RelayLegs run={run} />}
+      {run.legs?.length > 0 && <RelayLegs run={run} activeLeg={legEnd != null ? step?.leg : null} />}
       {run.final_screenshot && !compact && <a className="link" href={asset(run.final_screenshot)} target="_blank" rel="noreferrer" data-testid="final-screenshot-link">Open final screenshot</a>}
     </div>
   );

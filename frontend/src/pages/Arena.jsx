@@ -8,6 +8,7 @@ import Broadcast from "../components/Broadcast";
 import SquadCard from "../components/SquadCard";
 import TournamentPanel from "../components/Tournament";
 import SelfReport from "../components/SelfReport";
+import InviteTracker from "../components/InviteTracker";
 import { COURSES, CoursePicker } from "../components/courses";
 import { Btn, Card, Head, Notice, Page } from "../components/ui";
 
@@ -23,7 +24,7 @@ export default function Arena() {
   const [busy, setBusy] = useState(false);
   const [champions, setChampions] = useState([]);
   const [preset, setPreset] = useState([]);
-  const [course, setCourse] = useState("obstacle-1");
+  const [course, setCourse] = useState(() => (COURSES[new URLSearchParams(window.location.search).get("course")] ? new URLSearchParams(window.location.search).get("course") : "obstacle-1"));
   const startRelay = async opponent => {
     const ids = [(await post("/runs", { course_id: course, adapter: "relay" })).id];
     if (opponent) ids.push((await post("/runs", { course_id: course, crab_id: opponent, adapter: "crab" })).id);
@@ -90,6 +91,7 @@ export default function Arena() {
             <Btn onClick={start} disabled={!picked.length || busy} testId="start-duel-btn">{busy ? "Launching…" : picked.length > 1 ? "Start duel" : "Start run"}</Btn>
           </Card>
           <SelfReport courseId={course} />
+          <InviteTracker />
         </div>
       )}
       {user && (

@@ -7,6 +7,8 @@ import { Badge, Card, Page } from "../components/ui";
 import { api } from "../api";
 import CrabCard, { useCards } from "../components/CrabCard";
 import HeadToHead from "../components/HeadToHead";
+import CourseOfWeek from "../components/CourseOfWeek";
+import InviteTracker from "../components/InviteTracker";
 
 const STEPS = [
   [Wrench, "Build your crab", "Name it, color it, give it skills, a personality and a system prompt."],
@@ -90,6 +92,8 @@ export default function Home() {
           </Card>
         ))}
       </section>
+      <InviteTracker compact />
+      <CourseOfWeek />
       <Carousel />
       <HeadToHead compact />
       <section>

@@ -20,6 +20,7 @@ from auth import current_user, require_pro
 from courses import COURSES
 from db import db
 from models import RunCreate
+from platform_api import level
 from runner import DATA_DIR
 from security import client_ip
 
@@ -232,7 +233,43 @@ async def revoke_share(tournament_id: str, user: dict = Depends(current_user)):
 
 
 def clean_entrant(e: Optional[dict]) -> Optional[dict]:
-    return {k: e.get(k) for k in ("name", "color", "accent", "accessory", "champion", "adapter")} if e else None
+    return {k: e.get(k) for k in ("crab_id", "name", "color", "accent", "accessory", "champion", "adapter")} if e else None
+
+
+# ---------- collector cards (public, stats only — never prompts or keys) ----------
+def clamp(v: float) -> int:
+    return int(max(0, min(100, round(v))))
+
+
+async def card_for(crab: dict) -> dict:
+    cid = str(crab["_id"])
+    runs = [r async for r in db.runs.find({"crab_id": cid, "status": {"$in": ["succeeded", "failed"]}},
+                                          {"steps.ok": 1, "status": 1, "score": 1, "elapsed_s": 1, "verification": 1, "steps_used": 1, "created_at": 1})
+            .sort("created_at", -1).limit(30)]
+    wins = [r for r in runs if r["status"] == "succeeded"]
+    oks = [s.get("ok", True) for r in runs for s in r.get("steps", [])]
+    times = [r["elapsed_s"] for r in runs if r.get("elapsed_s")]
+    decoys = [(r.get("verification") or {}).get("decoys") or 0 for r in runs]
+    lv = level(crab.get("xp", 0))
+    champion = bool(crab.get("is_champion"))
+    badges = [b for b, ok in (("Champion", champion), ("First clear", wins), ("Decoy-proof", any(not (w.get("verification") or {}).get("decoys") for w in wins)),
+                              ("Speedster", any((w.get("elapsed_s") or 99) < 45 for w in wins)), ("Veteran", len(runs) >= 10)) if ok]
+    return {"id": cid, "name": crab["name"], "color": crab.get("color"), "accent": crab.get("accent"), "accessory": crab.get("accessory"),
+            "champion": champion, "level": lv["level"], "xp": crab.get("xp", 0), "xp_next": lv["next_level_xp"],
+            "rarity": "legendary" if champion else "gold" if lv["level"] >= 6 else "silver" if lv["level"] >= 3 else "bronze",
+            "stats": {"speed": clamp(115 - sum(times) / len(times)) if times else 0, "accuracy": clamp(100 * sum(oks) / len(oks)) if oks else 0,
+                      "dodge": clamp(100 - 30 * sum(decoys) / len(decoys)) if runs else 0},
+            "wins": len(wins), "losses": len(runs) - len(wins), "badges": badges, "subtitle": f"{crab.get('provider') or 'gemini'} · {crab.get('model') or ''}".strip(" ·"),
+            "history": [{"at": r["created_at"], "status": r["status"], "score": (r.get("score") or {}).get("total"), "steps": r.get("steps_used", 0),
+                         "elapsed": round(r["elapsed_s"]) if r.get("elapsed_s") else None} for r in runs[:6]],
+            "memory": (crab.get("memory") or [])[-3:]}
+
+
+@router.get("/cards")
+async def crab_cards(ids: str, request: Request):
+    await public_rate_limit(request, "cards", 120)
+    oids = [ObjectId(i) for i in ids.split(",")[:24] if ObjectId.is_valid(i)]
+    return [await card_for(c) async for c in db.crabs.find({"_id": {"$in": oids}})]
 
 
 def clean_tournament(doc: dict) -> dict:
@@ -244,9 +281,9 @@ def clean_tournament(doc: dict) -> dict:
             "entrants": [clean_entrant(e) for e in doc["entrants"]], "rounds": rounds}
 
 
-async def public_rate_limit(request: Request, limit: int = 60, window_s: int = 60) -> None:
+async def public_rate_limit(request: Request, scope: str = "public", limit: int = 60, window_s: int = 60) -> None:
     # Stored in Mongo (TTL index) so the limit holds across backend replicas.
-    key, now = f"public:{client_ip(request)}", datetime.now(timezone.utc)
+    key, now = f"{scope}:{client_ip(request)}", datetime.now(timezone.utc)
     await db.rate_hits.insert_one({"key": key, "at": now})
     if await db.rate_hits.count_documents({"key": key, "at": {"$gt": now - timedelta(seconds=window_s)}}) > limit:
         raise HTTPException(429, f"Too many requests. Try again in {window_s}s.")
@@ -302,9 +339,10 @@ async def public_run(slug: str, run_id: str, request: Request):
 
 @public_router.get("/t/{slug}/runs/{run_id}/screenshots/{name}")
 async def public_shot(slug: str, run_id: str, name: str, request: Request):
-    doc = await shared(slug, request)
+    await public_rate_limit(request, "shots", 600)
+    doc = await db.tournaments.find_one({"share_slug": slug, "share_enabled": True})
     path = DATA_DIR / "runs" / run_id / name
-    if not run_in(doc, run_id) or not SHOT_RE.fullmatch(name) or not path.is_file():
+    if not doc or not run_in(doc, run_id) or not SHOT_RE.fullmatch(name) or not path.is_file():
         raise HTTPException(404, "Screenshot not found")
     return FileResponse(path, media_type="image/jpeg")
 

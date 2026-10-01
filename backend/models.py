@@ -82,6 +82,10 @@ class CourseAttempt(BaseDocument):
     user_id: Optional[str] = None
     recording_url: Optional[str] = None
     run_id: Optional[str] = None
+    agent_kind: Optional[str] = None
+    expires_at: Optional[str] = None
+    reported_elapsed_s: Optional[float] = None
+    failed_submits: int = 0
     created_at: str
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
@@ -115,7 +119,8 @@ class RunCreate(BaseModel):
 
 class AttemptCreate(BaseModel):
     course_id: str = Field(max_length=60)
-    agent_label: str = Field(default="external", min_length=1, max_length=80)
+    agent_kind: str = Field(default="other", pattern=r"^(copilot|comet|other)$")
+    agent_label: str = Field(default="", max_length=80)
 
 
 class StationAction(BaseModel):
@@ -126,6 +131,7 @@ class StationAction(BaseModel):
 class CodeSubmission(BaseModel):
     code: str = Field(min_length=1, max_length=400)
     steps: Optional[int] = Field(default=None, ge=0, le=10000)
+    reported_elapsed_s: Optional[float] = Field(default=None, ge=0, le=86400)
     recording_url: Optional[str] = Field(default=None, max_length=500, pattern=r"^https?://")
 
 

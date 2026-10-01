@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from course_store import (AttemptError, clear_station, course_exists, create_attempt, get_attempt, hit_decoy,
-                          public_view, submit_code)
+from course_store import (AGENT_NAMES, AttemptError, clear_station, course_exists, create_attempt, get_attempt, hit_decoy,
+                          is_expired, public_view, submit_self_report)
 from courses import COURSES, render_notice, render_station, station_ids
 from auth import current_user
 from db import db
 from security import client_ip, rate_limit
-from models import AttemptCreate, CodeSubmission, StationAction
+from models import AttemptCreate, CodeSubmission, CourseAttempt, StationAction
 
 router = APIRouter(prefix="/api")
 NO_STORE = {"Cache-Control": "no-store"}
@@ -44,6 +44,9 @@ async def course_station(course_id: str, station: str, a: str = ""):
             return RedirectResponse(f"/api/courses/{course_id}/{station}?a={attempt.id}", status_code=302)
         return HTMLResponse(render_notice(course_id, "No valid attempt", "Every run starts at the start line.",
                                           f"/api/courses/{course_id}/start", "Go to the start line"), headers=NO_STORE)
+    if is_expired(attempt):
+        return HTMLResponse(render_notice(course_id, "Attempt expired", "This attempt link expired before reaching the finish flag. Start a new attempt from the Arena.",
+                                          f"/api/courses/{course_id}/start", "Go to the start line"), headers=NO_STORE)
     expected = order[len(attempt.cleared)] if len(attempt.cleared) < len(order) else order[-1]
     if station != expected:
         return HTMLResponse(render_notice(course_id, "Out of order", f"Stations must be run in order. This attempt's next station is {expected}.",
@@ -56,7 +59,14 @@ async def new_attempt(body: AttemptCreate, user: dict = Depends(current_user)):
     rate_limit("attempt", str(user["_id"]), 10)
     if not course_exists(body.course_id):
         raise HTTPException(404, "Course not found")
-    return public_view(await create_attempt(db, body.course_id, body.agent_label.strip(), user_id=str(user["_id"])))
+    label = AGENT_NAMES.get(body.agent_kind) or body.agent_label.strip() or "Other agent"
+    return public_view(await create_attempt(db, body.course_id, label, user_id=str(user["_id"]), agent_kind=body.agent_kind))
+
+
+@router.get("/course-attempts/mine")
+async def my_attempts(user: dict = Depends(current_user)):
+    cursor = db.course_attempts.find({"user_id": str(user["_id"]), "agent_kind": {"$ne": None}}).sort("created_at", -1).limit(10)
+    return [public_view(CourseAttempt.from_mongo(d)) async for d in cursor]
 
 
 @router.get("/course-attempts/{attempt_id}")
@@ -84,7 +94,11 @@ async def attempt_decoy(attempt_id: str, body: StationAction):
 @router.post("/course-attempts/{attempt_id}/submit")
 async def attempt_submit(attempt_id: str, body: CodeSubmission, user: dict = Depends(current_user)):
     rate_limit("submit", str(user["_id"]), 10)
+    rate_limit("submit-attempt", attempt_id, 5)
     attempt = await load_attempt(attempt_id)
     if attempt.run_id or attempt.user_id != str(user["_id"]):
         raise HTTPException(403, "Only the owner of a self-reported attempt can submit its code.")
-    return await submit_code(db, attempt, body.code, body.steps, recording_url=body.recording_url)
+    try:
+        return await submit_self_report(db, attempt, body.code, body.reported_elapsed_s, body.recording_url)
+    except AttemptError as exc:
+        raise HTTPException(exc.status, str(exc))

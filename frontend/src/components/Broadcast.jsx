@@ -1,9 +1,10 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Megaphone, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import { Megaphone, Move3d, RotateCcw, Video, Volume2, VolumeX } from "lucide-react";
 import Crab, { REDUCED_MOTION, WEBGL } from "./Crab";
 import { LIVE, moodFor, stationOf, useRun } from "./RunPlayer";
 import { useSfx } from "./sfx";
+import { useQuality } from "./quality";
 import { post } from "../api";
 import { useAuth } from "../auth";
 
@@ -104,6 +105,8 @@ export default function Broadcast({ runIds, title = "Tidepool Gauntlet", base = 
   const [calls, setCalls] = useState([]);
   const [reaction, setReaction] = useState(null);
   const sfx = useSfx();
+  const quality = useQuality();
+  const [camMode, setCamMode] = useState("cinematic");
   const playRef = useRef(sfx.play);
   playRef.current = sfx.play;
   const prev = useRef({});
@@ -132,8 +135,8 @@ export default function Broadcast({ runIds, title = "Tidepool Gauntlet", base = 
   const clock = useMemo(() => Math.max(0, ...racers.map(r => r.clock)), [racers]);
   if (!racers.length) return <div className="broadcast shimmer" data-testid="broadcast-loading">Warming up the stadium…</div>;
   return (
-    <section className="broadcast" data-testid="broadcast" data-reaction={reaction?.kind || ""}>
-      {WEBGL ? <Suspense fallback={<div className="stadium-flat">Loading stadium…</div>}><Stadium3D racers={racers} reaction={reaction} /></Suspense>
+    <section className="broadcast" data-testid="broadcast" data-reaction={reaction?.kind || ""} data-quality={quality.level} data-camera={camMode}>
+      {WEBGL ? <Suspense fallback={<div className="stadium-flat">Loading stadium…</div>}><Stadium3D racers={racers} reaction={reaction} quality={quality} camMode={camMode} replay={!live} /></Suspense>
         : <><div className="stadium-flat">3D stadium unavailable on this device — follow the minimap.</div><FxOverlay reaction={reaction} /></>}
       <div className="scoreboard">
         <Side r={racers[0]} />
@@ -147,9 +150,21 @@ export default function Broadcast({ runIds, title = "Tidepool Gauntlet", base = 
       </div>
       {!spectator && <CoachBar racers={racers} />}
       <Minimap racers={racers} />
-      <button className="icon-btn mute-btn" onClick={sfx.toggle} aria-label={sfx.muted ? "Turn crowd sound on" : "Mute crowd sound"} data-testid="broadcast-mute-btn" data-muted={sfx.muted}>
-        {sfx.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-      </button>
+      <div className="hud-tools">
+        {WEBGL && (
+          <>
+            <select value={quality.choice} onChange={e => quality.choose(e.target.value)} aria-label="Render quality" data-testid="broadcast-quality-select">
+              <option value="auto">Auto ({quality.level})</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
+            </select>
+            <button className="icon-btn" onClick={() => setCamMode(m => (m === "cinematic" ? "free" : "cinematic"))} aria-label="Toggle camera" title={camMode === "cinematic" ? "Cinematic camera (click for free orbit)" : "Free orbit (click for cinematic)"} data-testid="broadcast-camera-btn">
+              {camMode === "cinematic" ? <Video size={16} /> : <Move3d size={16} />}
+            </button>
+          </>
+        )}
+        <button className="icon-btn" onClick={sfx.toggle} aria-label={sfx.muted ? "Turn crowd sound on" : "Mute crowd sound"} data-testid="broadcast-mute-btn" data-muted={sfx.muted}>
+          {sfx.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+        </button>
+      </div>
       {!live && <button className="icon-btn replay-btn" onClick={() => { setIa(0); setIb(0); prev.current = {}; }} aria-label="Replay broadcast" data-testid="broadcast-replay-btn"><RotateCcw size={16} /></button>}
     </section>
   );

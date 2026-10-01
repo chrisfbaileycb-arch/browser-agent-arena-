@@ -233,6 +233,7 @@ async def startup():
     await db.rate_hits.create_index("at", expireAfterSeconds=120)
     await db.user_keys.create_index([("user_id", 1), ("provider", 1)], unique=True)
     await db.course_attempts.create_index([("course_id", 1), ("verified", 1)])
+    await db.course_attempts.create_index([("user_id", 1), ("created_at", -1)])
     admin = await db.users.find_one({"email": os.environ["ADMIN_EMAIL"]})
     for name, provider, model, color, accent, accessory, personality in CHAMPIONS:
         await db.crabs.update_one({"name": name, "is_champion": True}, {"$setOnInsert": {

@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 5 covers the new visual-upgrade batch: public /api/cards collector card API, leaderboard crab_id, home Champion gallery / Builder / Leaderboard podium / Tournament entrant+champion cards, stadium quality switcher (auto/high/medium/low with localStorage persistence), cinematic<->free camera toggle, and public share page cards. Backend: added /app/backend/tests/test_cards_api.py (9 tests, 8 pass + rate-limit skipped once window exhausted). /api/cards returns the full declared schema (id,name,color,accent,accessory,champion,level,xp,xp_next,rarity,stats{speed,accuracy,dodge in 0..100},wins,losses,badges,subtitle,history[],memory[]), with NO leak of system_prompt / user_id / key fields; champion crabs are tagged rarity=legendary; invalid ObjectId segments are silently dropped; mixed valid+invalid returns only valid; empty param returns []. 429 rate-limit confirmed around the 120/min threshold on scope 'cards'. GET /api/leaderboard/obstacle-1 rows include crab_id (may be null for self_reported). GET /api/public/t/SZj1o0S3sOkhqHvY entrants each expose crab_id. Frontend verified end-to-end on REACT_APP_BACKEND_URL: HOME champion gallery renders 3 champion-card-<id> with legendary frame, LV badge, name, Speed/Accuracy/Decoy-dodge/XP stat rows, W/L and badges; dispatching pointermove updates inline --rx/--ry CSS vars (-50deg/+6deg observed); champion-card-<id>-flip flips to run-history + Memory highlights, click again flips back. BUILDER /builder (pro@steps.dev) shows the 4 squad crab-card-<id> (Scout Sally, Pinchy, Gate Gus, TESTUI_2570042) each with edit-crab-<id> and delete-crab-<id>; clicking edit populates crab-name-input ('Gate Gus'); squad crabs NOT deleted. LEADERBOARD shows leaderboard-podium with 3 podium-card-0..2 and the all/solo/relay filters work. ARENA /arena broadcast exposes data-quality='low' (auto on headless SwiftShader) and data-camera='cinematic'; broadcast-quality-select contains auto/high/medium/low, switching to High flips data-quality='high', re-mounts the Canvas (EffectComposer/N8AO/DOF) with zero critical console errors, and persists to localStorage.soe_quality='high' across reload on /course. broadcast-camera-btn toggles cinematic<->free. broadcast-mute-btn toggles data-muted true<->false. Tournament panel shows entrant-cards + champion-crab-card inside champion-card. PUBLIC /t/SZj1o0S3sOkhqHvY (logged out) renders champion-card>champion-crab-card and 2 entrant-cards, public-views=162. /course replay plays with callouts ('WALL CLEARED!') at both Low and High. Only ongoing frontend console warning is a React duplicate-key warning from CrabCard Back when memory[] or history[] contains repeat entries (keyed on item value / index collisions); non-fatal but should be hardened. Did NOT start real LLM runs per iteration 5 instructions.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/cards?ids=...", "issue": "Returns 429 when upstream window is exhausted — rate limit is Mongo-TTL based so if a batch of tests burns the budget, follow-on test modules get 429s for ~60s. Tests include a sleep + the rate-limit test is intentionally last; main agent should be aware when running the full suite in rapid succession."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "CrabCard Back", "issue": "React warning: 'Encountered two children with the same key' when card.memory[] (or history[]) contains duplicate strings. memory list uses key={m}; champion crabs have repeated 'obstacle-1: cleared in 19 steps (score 78)' entries. Non-fatal but spams the console on every page that renders the champion gallery, podium, or tournament champion.", "selector": "/app/frontend/src/components/CrabCard.jsx line ~56 (memory list) and line ~51 (history keyed by index — fine)", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cards_api.py",
+    "/app/test_reports/pytest/iter5.xml"
+  ],
+  "action_items": [
+    "Deduplicate / stable-key the memory list in CrabCard Back (e.g. key={`${i}-${m}`} or dedupe upstream in card_for()) to clear the React key warning."
+  ],
+  "critical_code_review_comments": [
+    "arena_api.card_for(): memory[-3:] and history[:6] can include byte-identical repeats (same run success produces identical memory strings), which drives the duplicate-key warning. Easy fix: de-dupe in card_for before returning, or keep as-is and fix the key on the client.",
+    "arena_api.crab_cards(): parses ObjectId per id but reads crabs via find({'_id':{'$in':oids}}); fine, but response order is NOT guaranteed to match request order, so clients that look up by index would break. useCards() in CrabCard.jsx indexes by id so this is OK — just worth documenting.",
+    "/api/champions still returns full crab_view including user_id and system_prompt (confirmed in response). The spec in the review request only restricts /api/cards; however since champions are listed publicly on Home, leaking system_prompt / user_id lets anyone clone the champion crabs' prompts. Recommend trimming champion response to the public card shape or routing Home through /api/cards only.",
+    "quality.js auto-detect uses PerformanceMonitor — on headless Chromium (SwiftShader) always drops to 'low'; the manual override via broadcast-quality-select correctly short-circuits auto. Good.",
+    "Broadcast.jsx data-testid root wiring (data-quality/data-camera/data-reaction/data-muted) is clean and non-invasive; no three.js regression."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cards_api.py"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8 executed; 1 rate-limit test deselected after window was already exhausted — manually verified 429 before deselect)",
+    "frontend": "100% of tested flows (home cards + tilt + flip; builder cards + edit; leaderboard podium + filters; arena quality select + persistence + camera + mute + entrant/champion cards; public share page cards; /course replay with callouts at Low and High)"
+  },
+  "test_credentials": "pro@steps.dev / ProCrab!2026 (verified login via /api/auth/login)",
+  "seed_data_creation": "Restored Tidepool Cup share_slug back to 'SZj1o0S3sOkhqHvY' (had been regenerated to 'uxSu4AHXB1sMte14' by a prior test run). Final DB state: slug=SZj1o0S3sOkhqHvY enabled=True — public link still works.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && pytest tests/test_cards_api.py -v. The rate-limit test (test_cards_rate_limit) will burn the 120/min 'cards' scope budget — run it LAST and allow ~65s before any other /api/cards tests. If any prior test exhausts the window, follow-on tests will see 429 and must sleep 60s. The shared Tidepool Cup slug is SZj1o0S3sOkhqHvY — if a share-regenerate test runs again, restore with: db.tournaments.update_one({'name':'Tidepool Cup'},{'$set':{'share_slug':'SZj1o0S3sOkhqHvY','share_enabled':True}}). For Playwright, set emulate_media(reduced_motion='no-preference') otherwise CrabCard tilt handler short-circuits via REDUCED_MOTION. Headless Chromium always auto-detects quality='low'; force 'high' via broadcast-quality-select to exercise post-processing paths.",
+  "rca of the issue": "React duplicate-key warning: CrabCard Back renders <ul className=cc-memory>{(card?.memory||[]).map(m => <li key={m}>...)}; champion crabs have memory arrays with repeat strings (same success message after multiple successful runs). React dedupes identical keys which both wastes a reconciliation slot and emits the warning. Mitigation: either de-dupe memory in /api/cards' card_for() (lines 265 of arena_api.py: memory: list(dict.fromkeys((crab.get('memory') or [])))[-3:]) or change the client key to `${i}-${m}`."
+}

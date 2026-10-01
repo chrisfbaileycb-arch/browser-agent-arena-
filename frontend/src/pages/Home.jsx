@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Eye, Flag, KeyRound, Swords, Wrench } from "
 import Crab from "../components/Crab";
 import { Badge, Card, Page } from "../components/ui";
 import { api } from "../api";
+import CrabCard, { useCards } from "../components/CrabCard";
 
 const STEPS = [
   [Wrench, "Build your crab", "Name it, color it, give it skills, a personality and a system prompt."],
@@ -61,6 +62,7 @@ export default function Home() {
     api("/stats").then(setStats).catch(() => {});
   }, []);
   const pct = stats ? Math.min(100, Math.max(3, (stats.crabs_registered / stats.goal) * 100)) : 0;
+  const cards = useCards(champions.map(c => c.id));
   return (
     <Page testId="home-page">
       <section className="night-hero" data-testid="home-hero">
@@ -90,16 +92,8 @@ export default function Home() {
       <Carousel />
       <section>
         <h2 className="section-title">Champion gallery</h2>
-        <div className="grid three">
-          {champions.map(c => (
-            <Card key={c.id} className="champ" testId={`champion-card-${c.id}`}>
-              <Crab size={110} mood="idle" color={c.color} accent={c.accent} accessory={c.accessory} />
-              <h3>{c.name}</h3>
-              <p className="muted">{c.provider} · {c.model}</p>
-              <p>{c.personality}</p>
-              <div className="row"><Badge kind="lagoon">Level {c.level}</Badge><Badge>{c.wins}/{c.runs} clears</Badge></div>
-            </Card>
-          ))}
+        <div className="card-grid">
+          {champions.map(c => <CrabCard key={c.id} crab={{ ...c, champion: true }} card={cards[c.id]} size={250} testId={`champion-card-${c.id}`} />)}
         </div>
         <Link to="/arena" className="link" data-testid="home-watch-replays-link"><Eye size={15} /> Watch champion replays in the Arena</Link>
       </section>

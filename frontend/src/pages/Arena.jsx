@@ -1,51 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, BACKEND, post } from "../api";
+import { api, post } from "../api";
 import { useAuth } from "../auth";
 import Crab from "../components/Crab";
 import RunPlayer from "../components/RunPlayer";
 import Broadcast from "../components/Broadcast";
 import SquadCard from "../components/SquadCard";
 import TournamentPanel from "../components/Tournament";
-import { Btn, Card, Head, Notice, Page, SignInModal } from "../components/ui";
-
-function SelfReport() {
-  const { user } = useAuth();
-  const [ask, setAsk] = useState(false);
-  const [label, setLabel] = useState("Copilot");
-  const [attempt, setAttempt] = useState(null);
-  const [code, setCode] = useState("");
-  const [recording, setRecording] = useState("");
-  const [msg, setMsg] = useState("");
-  const create = () => {
-    if (!user) return setAsk(true);
-    setMsg("");
-    return post("/course-attempts", { course_id: "obstacle-1", agent_label: label }).then(setAttempt).catch(e => setMsg(e.message));
-  };
-  const submit = () => post(`/course-attempts/${attempt.id}/submit`, { code, recording_url: recording || undefined })
-    .then(r => setMsg(r.verified ? `Verified. Score ${r.score.total}.` : "Code did not match this attempt.")).catch(e => setMsg(e.message));
-  return (
-    <Card testId="self-report-panel">
-      <h3>Self-reported run (Copilot, Comet, any agent)</h3>
-      <p className="muted">Start an attempt, let your agent run the course URL in its own browser, then submit the finish code it saw.</p>
-      {!attempt ? (
-        <div className="row"><input value={label} onChange={e => setLabel(e.target.value)} data-testid="self-report-label-input" /><Btn onClick={create} testId="self-report-start-btn">Get course link</Btn></div>
-      ) : (
-        <>
-          <a className="link" href={`${BACKEND}${attempt.start_path}`} target="_blank" rel="noreferrer" data-testid="self-report-course-link">Open your unique course link</a>
-          <code className="mono small course-url" data-testid="self-report-course-url">{`${BACKEND}${attempt.start_path}`}</code>
-          <div className="row">
-            <input placeholder="SOE-XXXX-XXXX" value={code} onChange={e => setCode(e.target.value)} data-testid="self-report-code-input" />
-            <input placeholder="Recording link (optional)" value={recording} onChange={e => setRecording(e.target.value)} data-testid="self-report-recording-input" />
-            <Btn onClick={submit} disabled={!code} testId="self-report-submit-btn">Submit code</Btn>
-          </div>
-        </>
-      )}
-      <Notice testId="self-report-message">{msg}</Notice>
-      <SignInModal open={ask} onClose={() => setAsk(false)} why="Sign in to get your own course link and a verifiable finish code." />
-    </Card>
-  );
-}
+import SelfReport from "../components/SelfReport";
+import { Btn, Card, Head, Notice, Page } from "../components/ui";
 
 export default function Arena() {
   const { user } = useAuth();

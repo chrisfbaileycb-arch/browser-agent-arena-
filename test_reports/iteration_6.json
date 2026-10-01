@@ -1,0 +1,18 @@
+{
+  "summary": "Iteration 6: Validated self-reported (Copilot/Comet/Other) course-attempt flow end-to-end. 16/16 pytest cases pass covering attempt creation (agent_label defaults, expires_at ~2h, invalid kind -> 422), /mine listing, full station walk (start->wall->doors->rope->beam->tunnel->finish) with nonce extraction, early submit 409, bad code 422 with 'N tries left', good-code verification (server_elapsed_s computed, reported_elapsed_s echoed, score.total present, reported time doesn't affect score), reuse 409, cross-user 403, cross-attempt rejection, 5-bad-code lockout, Mongo-backdated expiry (station page 'Attempt expired', clear 409, submit 410), leaderboard source=self_reported/verified filters, per-attempt submit rate-limit 429. Frontend /arena self-report-panel verified: agent chips (copilot/comet/other), label input appears for Other, start creates attempt, agent badge shows Comet, attempt URL, progress 0/7, expiry countdown, bad-code error surfaced in self-report-message. Reload restores open attempt via /course-attempts/mine (confirmed when attempt is in-flight; after cleanup there is none to restore). /leaderboard source chips filter correctly; self-reported rows render 'Self-reported' badge, 'Comet · own browser' subtitle and time '1.6s (reported 5.5s)'. No React Router future-flag warnings in console. Home, Arena, Leaderboard pages render clean.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_self_report.py", "/app/test_reports/pytest/self_report_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "course_store.submit_self_report compares code bytes but still raises 'already finished' before expiry check for an already-submitted expired attempt — minor UX quirk; current paths all return correct HTTP codes.",
+    "Rate limiter is in-memory per process (noted in request); tests had to space attempt creations across free+pro users and wait ~60s between retries to avoid false 429s. Not a bug, but documenting for next agent."
+  ],
+  "updated_files": ["/app/backend/tests/test_self_report.py"],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% core flows"},
+  "test_credentials": "free@steps.dev / FreeCrab!2026, pro@steps.dev / ProCrab!2026 (login JSON returns token used as Bearer)",
+  "seed_data_creation": "Created and then cleaned up ~5 self-report attempts for free/pro users (course_attempts with agent_kind != null). One leaderboard row (Comet 99 pts) was removed post-test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Self-report backend+frontend verified in iteration 6. Rate limit windows are 60s/process; if re-running test_self_report.py back-to-back, wait >=60s or restart backend to clear buckets. Cleanup query: db.course_attempts.delete_many({user_id: <uid>, agent_kind: {$ne: null}}). Only /arena self-report panel + /leaderboard source chips were exercised beyond regression smoke; previous iteration coverage for runs/relay/BYOK/Stripe/tournaments/stadium/cards is still valid."
+}

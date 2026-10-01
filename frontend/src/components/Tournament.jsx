@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Copy, Crown, Share2, Trophy } from "lucide-react";
 import { api, del, post } from "../api";
-import Crab from "./Crab";
+import CrabCard, { useCards } from "./CrabCard";
 import { Btn, Card, Notice } from "./ui";
 
 const ROUND_NAMES = { 4: "Round of 8", 2: "Semifinals", 1: "Final" };
@@ -23,7 +23,12 @@ function Match({ m, onWatch, testId }) {
 }
 
 export function Bracket({ t, onWatch }) {
+  const cards = useCards(t.entrants.map(e => e?.crab_id));
   return (
+    <>
+    <div className="card-row" data-testid="entrant-cards">
+      {t.entrants.map((e, i) => <CrabCard key={i} crab={e} card={cards[e.crab_id]} size={180} testId={`entrant-card-${i}`} />)}
+    </div>
     <div className="bracket" data-testid="bracket">
       {t.rounds.map((round, r) => (
         <div className="b-col" key={r}>
@@ -34,11 +39,12 @@ export function Bracket({ t, onWatch }) {
       <div className="b-col">
         <h4>Champion</h4>
         <div className="champion-card" data-testid="champion-card">
-          {t.champion ? <><Crab size={110} mood="celebrate" color={t.champion.color} accent={t.champion.accent} accessory={t.champion.accessory} /><Crown size={18} /><b>{t.champion.name}</b></>
+          {t.champion ? <><CrabCard crab={t.champion} card={cards[t.champion.crab_id]} size={190} extra="Tournament champion" testId="champion-crab-card" /><b><Crown size={16} /> {t.champion.name}</b></>
             : <><Trophy size={30} /><small>{t.status === "running" ? "Matches in progress…" : t.error || "No champion"}</small></>}
         </div>
       </div>
     </div>
+    </>
   );
 }
 

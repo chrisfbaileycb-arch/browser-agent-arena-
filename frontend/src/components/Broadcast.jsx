@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Megaphone, RotateCcw } from "lucide-react";
-import Crab, { WEBGL } from "./Crab";
+import { Megaphone, RotateCcw, Volume2, VolumeX } from "lucide-react";
+import Crab, { REDUCED_MOTION, WEBGL } from "./Crab";
 import { LIVE, moodFor, stationOf, useRun } from "./RunPlayer";
+import { useSfx } from "./sfx";
 import { post } from "../api";
 import { useAuth } from "../auth";
 
@@ -30,8 +31,23 @@ function racerOf(run, i, now) {
   const step = run.steps[i], isLast = i >= run.steps.length - 1, finished = run.status === "succeeded" && isLast;
   const live = LIVE.includes(run.status), start = Date.parse(run.started_at || run.created_at);
   const clock = live ? (now - start) / 1000 : step ? (Date.parse(step.at) - start) / 1000 : 0;
+  const relay = run.adapter === "relay", legs = run.profile?.legs || [];
+  const leg = relay ? legs.find(l => l.role === step?.role) || legs[0] : null;
   return { id: run.id, run, step, stepN: step?.n || 0, at: finished ? 6 : stationOf(step?.url), mood: moodFor(run, step, isLast), finished, live,
-    look: run.profile || {}, name: run.profile?.name || run.champion_label || "Crab", clock: Math.max(0, clock), score: isLast ? run.score?.total : null };
+    relay, leg: relay ? step?.leg ?? null : null, look: leg || run.profile || {},
+    name: leg ? `Relay · ${leg.name}` : run.profile?.name || run.champion_label || "Crab", clock: Math.max(0, clock), score: isLast ? run.score?.total : null };
+}
+
+function FxOverlay({ reaction }) {
+  if (!reaction) return null;
+  return (
+    <div className="fx-layer" key={reaction.id} aria-hidden>
+      <i className={`fx-flash ${reaction.kind}`} style={{ "--c": reaction.color }} />
+      {reaction.kind === "finish" && !REDUCED_MOTION && [...Array(28)].map((_, i) => (
+        <i key={i} className="fx-confetti" style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i % 7) * 0.12}s`, background: ["#FF5A4E", "#12B5A5", "#FFD23F", "#4D8BFF", "#FF3DA5"][i % 5] }} />
+      ))}
+    </div>
+  );
 }
 
 function Side({ r, right }) {
@@ -79,38 +95,46 @@ function CoachBar({ racers }) {
   );
 }
 
-export default function Broadcast({ runIds, title = "Tidepool Gauntlet" }) {
-  const { run: a } = useRun(runIds[0]);
-  const { run: b } = useRun(runIds[1]);
+export default function Broadcast({ runIds, title = "Tidepool Gauntlet", base = "/runs", spectator = false }) {
+  const { run: a } = useRun(runIds[0], base);
+  const { run: b } = useRun(runIds[1], base);
   const [ia, setIa] = usePlayhead(a);
   const [ib, setIb] = usePlayhead(b);
   const [now, setNow] = useState(Date.now());
   const [calls, setCalls] = useState([]);
+  const [reaction, setReaction] = useState(null);
+  const sfx = useSfx();
+  const playRef = useRef(sfx.play);
+  playRef.current = sfx.play;
   const prev = useRef({});
   const racers = [racerOf(a, ia, now), racerOf(b, ib, now)].filter(Boolean);
   const live = racers.some(r => r.live);
   useEffect(() => { if (!live) return undefined; const t = setInterval(() => setNow(Date.now()), 200); return () => clearInterval(t); }, [live]);
-  const key = racers.map(r => `${r.id}:${r.at}:${r.stepN}:${r.finished}`).join("|");
+  const key = racers.map(r => `${r.id}:${r.at}:${r.stepN}:${r.finished}:${r.leg}`).join("|");
   useEffect(() => {
-    const add = (text, kind) => {
+    const add = (text, kind, color) => {
       const id = Math.random();
       setCalls(c => [...c.slice(-2), { id, text, kind }]);
       setTimeout(() => setCalls(c => c.filter(x => x.id !== id)), 2300);
+      const react = kind === "bad" ? "groan" : kind === "gold" && text.includes("FINISH") ? "finish" : "cheer";
+      setReaction({ id, kind: react, color });
+      playRef.current(react);
     };
     racers.forEach(r => {
-      const p = prev.current[r.id] || { at: r.at, n: r.stepN, finished: r.finished };
-      if (r.at > p.at && r.at <= 6) add(`${r.name} · ${CLEARED[STATIONS[r.at - 1]]}`, "good");
-      if (r.stepN !== p.n && r.step && !r.step.ok) add(`${r.name} · STUMBLE!`, "bad");
-      if (r.finished && !p.finished) add(`${r.name} · FINISH · CODE VERIFIED!`, "gold");
-      prev.current[r.id] = { at: r.at, n: r.stepN, finished: r.finished };
+      const p = prev.current[r.id] || { at: r.at, n: r.stepN, finished: r.finished, leg: r.leg };
+      if (r.relay && r.leg != null && p.leg != null && r.leg !== p.leg) add(`${r.name} · BATON PASSED!`, "baton", r.look.color);
+      if (r.at > p.at && r.at <= 6) add(`${r.name} · ${CLEARED[STATIONS[r.at - 1]]}`, "good", r.look.color);
+      if (r.stepN !== p.n && r.step && !r.step.ok) add(`${r.name} · STUMBLE!`, "bad", r.look.color);
+      if (r.finished && !p.finished) add(`${r.name} · FINISH · CODE VERIFIED!`, "gold", r.look.color);
+      prev.current[r.id] = { at: r.at, n: r.stepN, finished: r.finished, leg: r.leg };
     });
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   const clock = useMemo(() => Math.max(0, ...racers.map(r => r.clock)), [racers]);
   if (!racers.length) return <div className="broadcast shimmer" data-testid="broadcast-loading">Warming up the stadium…</div>;
   return (
-    <section className="broadcast" data-testid="broadcast">
-      {WEBGL ? <Suspense fallback={<div className="stadium-flat">Loading stadium…</div>}><Stadium3D racers={racers} /></Suspense>
-        : <div className="stadium-flat">3D stadium unavailable on this device — follow the minimap.</div>}
+    <section className="broadcast" data-testid="broadcast" data-reaction={reaction?.kind || ""}>
+      {WEBGL ? <Suspense fallback={<div className="stadium-flat">Loading stadium…</div>}><Stadium3D racers={racers} reaction={reaction} /></Suspense>
+        : <><div className="stadium-flat">3D stadium unavailable on this device — follow the minimap.</div><FxOverlay reaction={reaction} /></>}
       <div className="scoreboard">
         <Side r={racers[0]} />
         <div className="sb-clock"><small>{title}</small><strong data-testid="run-timer">{fmt(clock)}</strong>{live && <i className="live-pill">LIVE</i>}</div>
@@ -121,8 +145,11 @@ export default function Broadcast({ runIds, title = "Tidepool Gauntlet" }) {
           <motion.div key={c.id} className={`callout ${c.kind}`} data-testid="callout" initial={{ x: -320, opacity: 0, skewX: -12 }} animate={{ x: 0, opacity: 1, skewX: -12 }} exit={{ x: 320, opacity: 0 }} transition={{ type: "spring", stiffness: 260, damping: 22 }}>{c.text}</motion.div>
         ))}</AnimatePresence>
       </div>
-      <CoachBar racers={racers} />
+      {!spectator && <CoachBar racers={racers} />}
       <Minimap racers={racers} />
+      <button className="icon-btn mute-btn" onClick={sfx.toggle} aria-label={sfx.muted ? "Turn crowd sound on" : "Mute crowd sound"} data-testid="broadcast-mute-btn" data-muted={sfx.muted}>
+        {sfx.muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+      </button>
       {!live && <button className="icon-btn replay-btn" onClick={() => { setIa(0); setIb(0); prev.current = {}; }} aria-label="Replay broadcast" data-testid="broadcast-replay-btn"><RotateCcw size={16} /></button>}
     </section>
   );

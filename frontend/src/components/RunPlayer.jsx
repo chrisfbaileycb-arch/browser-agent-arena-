@@ -10,21 +10,46 @@ const NAMES = ["Start", "Wall", "Doors", "Rope", "Beam", "Tunnel", "Finish"];
 export const LIVE = ["queued", "running"];
 export const stationOf = url => Math.max(0, STATIONS.findIndex(s => (url || "").includes(`/${s}?`) || (url || "").endsWith(`/${s}`)));
 
-export function useRun(runId) {
+export function useRun(runId, base = "/runs") {
   const [run, setRun] = useState(null);
   const [error, setError] = useState("");
   useEffect(() => {
     if (!runId) { setRun(null); return undefined; }
     let alive = true, timer;
-    const poll = () => api(`/runs/${runId}`).then(d => {
+    const poll = () => api(`${base}/${runId}`).then(d => {
       if (!alive) return;
       setRun(d);
       if (LIVE.includes(d.status)) timer = setTimeout(poll, 1200);
     }).catch(e => alive && setError(e.message));
     poll();
     return () => { alive = false; clearTimeout(timer); };
-  }, [runId]);
+  }, [runId, base]);
   return { run, error };
+}
+
+const ORDER = ["start", "wall", "doors", "rope", "beam", "tunnel", "finish"];
+
+function RelayLegs({ run }) {
+  return (
+    <div className="relay-legs" data-testid="relay-legs">
+      <h4>Relay legs</h4>
+      {run.relay_failure && <p className="notice notice-error" data-testid="relay-failure">{run.relay_failure}</p>}
+      <ol>
+        {run.legs.map(l => {
+          const cleared = Math.max(0, ORDER.indexOf(l.to_station) - ORDER.indexOf(l.from_station)) + (l.status === "finished" ? 1 : 0);
+          return (
+            <li key={l.index} className={`leg leg-${l.status}`} data-testid={`relay-leg-${l.index}`}>
+              <i className="crest" style={{ background: l.color }} />
+              <b>{l.role_name}</b><span>{l.name}</span>
+              <small>{l.from_station} → {l.to_station || "…"}</small>
+              <span className="mono">{l.steps ?? "…"} steps · {l.elapsed_s ?? "…"}s · {Math.max(0, 20 * cleared - 2 * (l.steps || 0))} pts</span>
+              <em>{l.status === "passed" ? "baton passed" : l.status}</em>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
 }
 
 // Crab mirrors the step being shown: pincer-snap on clicks/typing, stumble on errors, celebrate at the finish.
@@ -54,8 +79,8 @@ function Track({ run, index }) {
   );
 }
 
-export default function RunPlayer({ runId, compact }) {
-  const { run, error } = useRun(runId);
+export default function RunPlayer({ runId, compact, base }) {
+  const { run, error } = useRun(runId, base);
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [follow, setFollow] = useState(true);
@@ -122,6 +147,7 @@ export default function RunPlayer({ runId, compact }) {
           )}
         </div>
       </div>
+      {run.legs?.length > 0 && <RelayLegs run={run} />}
       {run.final_screenshot && !compact && <a className="link" href={asset(run.final_screenshot)} target="_blank" rel="noreferrer" data-testid="final-screenshot-link">Open final screenshot</a>}
     </div>
   );

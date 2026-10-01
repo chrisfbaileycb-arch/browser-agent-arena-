@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field  # noqa: E402
 from starlette.middleware.cors import CORSMiddleware  # noqa: E402
 
 from adapters import ADAPTERS  # noqa: E402
-from arena_api import router as arena_router  # noqa: E402
+from arena_api import public_router, relay_profile, router as arena_router  # noqa: E402
 from auth import current_user, is_pro, optional_user, router as auth_router, seed_users  # noqa: E402
 from billing import router as billing_router  # noqa: E402
 from course_api import router as course_router  # noqa: E402
@@ -85,7 +85,14 @@ async def start_run(user: dict, body: RunCreate, public: bool = False, champion_
     if adapter.tier == "champion" and not is_pro(user):
         raise HTTPException(402, "Champion agent runs need the Pro plan.")
     profile = {}
-    if body.crab_id:
+    if adapter.id == "relay":
+        profile = await relay_profile(user)
+        for leg_provider in {leg.get("provider") or "gemini" for leg in profile["legs"]}:
+            try:
+                await resolve_key(user, leg_provider)
+            except KeyMissing as exc:
+                raise HTTPException(412, str(exc))
+    elif body.crab_id:
         crab = await db.crabs.find_one({"_id": to_oid(body.crab_id), "$or": [{"user_id": str(user["_id"])}, {"is_champion": True}]})
         if not crab:
             raise HTTPException(404, "Crab not found")
@@ -198,7 +205,7 @@ async def get_screenshot(run_id: str, name: str, user: Optional[dict] = Depends(
     return FileResponse(path, media_type="image/jpeg")
 
 
-for r in (api, arena_router, auth_router, keys_router, endpoints_router, billing_router, course_router, platform_router, workflow_router):
+for r in (api, arena_router, public_router, auth_router, keys_router, endpoints_router, billing_router, course_router, platform_router, workflow_router):
     app.include_router(r)
 @app.middleware("http")
 async def json_errors(request, call_next):
@@ -223,6 +230,7 @@ CHAMPIONS = [("Gemini Scuttler", "gemini", "gemini-3-flash-preview", "#12B5A5", 
 @app.on_event("startup")
 async def startup():
     await seed_users()
+    await db.rate_hits.create_index("at", expireAfterSeconds=120)
     await db.user_keys.create_index([("user_id", 1), ("provider", 1)], unique=True)
     await db.course_attempts.create_index([("course_id", 1), ("verified", 1)])
     admin = await db.users.find_one({"email": os.environ["ADMIN_EMAIL"]})

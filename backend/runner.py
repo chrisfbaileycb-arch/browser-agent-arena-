@@ -63,7 +63,7 @@ async def browse(db, run: Run, user: dict, oid: ObjectId, folder: Path, started:
 
             await page.goto(run.target_url, wait_until="domcontentloaded", timeout=25000)
             session = BrowserSession(page=page, goal=run.goal, max_steps=MAX_STEPS, remaining=remaining, screenshot=screenshot,
-                                     record=record, resolve_key=lambda p: resolve_key(user, p), profile=run.profile, user_id=run.user_id, pull_hints=pull_hints,
+                                     record=record, resolve_key=lambda p: resolve_key(user, p), profile=run.profile, user_id=run.user_id, pull_hints=pull_hints, run_id=str(oid),
                                      public_url=PUBLIC_URL + run.display_url if run.kind == "course" else run.target_url)
             try:
                 outcome = await asyncio.wait_for(adapter.run(session), timeout=TIMEOUT_S + 10)

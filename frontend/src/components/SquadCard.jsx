@@ -10,14 +10,51 @@ const FORMATIONS = {
   "1-3": { scout: [50, 22], extract: [18, 72], gate: [50, 72], settle: [82, 72] },
 };
 
-export default function SquadCard({ crabs, onEnter }) {
-  const [squad, setSquad] = useState({ slots: {}, formation: "1-2-1" });
+const STATIONS = ["start", "wall", "doors", "rope", "beam", "tunnel", "finish"];
+
+function RelayControls({ squad, setSquad, crabs, champions, onRelay, save }) {
+  const [opponent, setOpponent] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const setStation = (st, role) => setSquad(s => ({ ...s, assignments: { ...s.assignments, [st]: role } }));
+  const go = async () => {
+    setBusy(true); setMsg("");
+    try { await save(); await onRelay(opponent); } catch (e) { setMsg(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="relay-box" data-testid="relay-controls">
+      <h4>Squad Relay · station assignments</h4>
+      <div className="assign-grid">
+        {STATIONS.map(st => (
+          <label key={st}><small>{st}</small>
+            <select value={squad.assignments?.[st] || ""} onChange={e => setStation(st, e.target.value)} data-testid={`relay-assign-${st}`}>
+              {ROLES.map(([r, label]) => <option key={r} value={r}>{label}</option>)}
+            </select>
+          </label>
+        ))}
+      </div>
+      <div className="row">
+        <select value={opponent} onChange={e => setOpponent(e.target.value)} data-testid="relay-opponent-select">
+          <option value="">Solo relay (no opponent)</option>
+          {crabs.map(c => <option key={c.id} value={c.id}>vs {c.name}</option>)}
+          {champions.map(c => <option key={c.id} value={c.id}>vs {c.name} (champion)</option>)}
+        </select>
+        <button className="btn btn-glow" onClick={go} disabled={busy} data-testid="relay-start-btn">{busy ? "Starting…" : "Start relay"}</button>
+      </div>
+      <Notice kind="error" testId="relay-error">{msg}</Notice>
+    </div>
+  );
+}
+
+export default function SquadCard({ crabs, champions = [], onEnter, onRelay }) {
+  const [squad, setSquad] = useState({ slots: {}, formation: "1-2-1", assignments: {} });
   const [msg, setMsg] = useState("");
   useEffect(() => { api("/squad").then(setSquad).catch(() => {}); }, []);
   const byId = id => crabs.find(c => c.id === id);
   const pos = FORMATIONS[squad.formation];
   const set = (role, id) => setSquad(s => ({ ...s, slots: { ...s.slots, [role]: id || null } }));
-  const save = () => put("/squad", squad).then(s => { setSquad(s); setMsg("Squad saved."); }).catch(e => setMsg(e.message));
+  const persist = () => put("/squad", squad).then(s => { setSquad(s); return s; });
+  const save = () => persist().then(() => setMsg("Squad saved.")).catch(e => setMsg(e.message));
   const members = ROLES.map(([r]) => squad.slots[r]).filter(Boolean);
   return (
     <section className="squad" data-testid="squad-card">
@@ -55,6 +92,7 @@ export default function SquadCard({ crabs, onEnter }) {
           <Notice testId="squad-msg">{msg}</Notice>
         </div>
       </div>
+      <RelayControls squad={squad} setSquad={setSquad} crabs={crabs} champions={champions} onRelay={onRelay} save={persist} />
     </section>
   );
 }

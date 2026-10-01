@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 4 covers the new batch: crowd reactions/SFX, squad relay + assignments, tournament sharing (public read-only endpoints + owner lifecycle), and leaderboard mode filters. Added /app/backend/tests/test_relay_share_leaderboard.py with 16 tests — 16/16 pass. Backend: squad GET/PUT persists assignments and merges with defaults (invalid roles/stations ignored); relay adapter returns 409 with the correct message when the role that owns any station has an empty slot (verified by temporarily clearing scout, then restoring); leaderboard ?mode=relay|solo|all filters correctly and the pre-seeded successful relay run (score 71) is present; POST /api/tournaments/{id}/share creates a slug and returns enabled:true, POST again regenerates and invalidates the previous slug (404), DELETE revokes (404); GET /api/public/t/<slug> works without auth, increments views, contains no user_id/email/crab_id/target_url/127.0.0.1/attempt-id leaks; GET /api/public/t/<slug>/runs/{run_id} rejects foreign run ids with 404 and returns sanitized steps (url like /courses/obstacle-1/<station>, screenshots rewritten to /api/public/t/<slug>/runs/{id}/screenshots/step-NN.jpg) and the screenshot endpoint serves image/jpeg without auth; /card returns HTML with og:title/og:image/twitter:card and /og.png returns image/png; public endpoints return 429 after 60/min per IP (verified directly against 127.0.0.1:8001 to avoid load-balancer count-splitting across replicas). Frontend: verified via Playwright on the REACT_APP_BACKEND_URL host. Public /t/SZj1o0S3sOkhqHvY (logged out) renders public-tournament-page with the bracket, champion-card, public-views (19), a Broadcast (no coach-bar) and RunPlayers with screenshots (Tidepool Cup, champion GPT Pincer). Broadcast root exposes data-reaction=cheer during replay callouts (BEAM BALANCED! / OFF THE LINE!) and broadcast-mute-btn toggles data-muted='true' -> 'false' with no console errors (three.js data-testid regression is fixed). Signed in as pro@steps.dev on /arena: SquadCard exposes relay-controls with all 7 relay-assign-<station> selects, relay-opponent-select, relay-start-btn; Tournament panel exposes share-bar with share-link, share-copy-btn, share-x-link, share-linkedin-link, share-regenerate-btn, share-revoke-btn, share-views (share-create-btn absent because a slug already exists — expected). /leaderboard exposes leaderboard-filter-all/solo/relay and the relay filter shows the seeded relay row. Did NOT start a new real relay run (respecting the 'at most ONE real LLM run' guidance) — the pre-existing relay run was verified via the leaderboard and the seeded share.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/public/t/{slug} rate limit", "issue": "The 60/min limit is per-process, so behind the preview edge (potential load-balancing across replicas) 70+ external requests may not all count against the same pod. Verified enforced correctly via direct 127.0.0.1:8001 hits. If prod is single-pod this is fine; otherwise consider moving the counter to Redis/Mongo."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_relay_share_leaderboard.py",
+    "/app/test_reports/pytest/iter4.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "arena_api.share_tournament regenerates the slug on every POST, so callers who re-POST to 'get the existing slug' actually invalidate their prior share silently. A GET /tournaments/{id}/share or an idempotent POST that returns the existing slug would be safer for the frontend which currently mounts share-bar without a share-create-btn when a slug exists.",
+    "arena_api.shared() calls rate_limit before the tournament existence check, so a client hammering an invalid slug still ticks the counter. That's actually good for anti-enumeration; keep as is.",
+    "arena_api.public_run / public_shot both re-authorize via run_in() on every request — O(rounds*matches) scan per request. Fine for small brackets but consider indexing run_ids on the tournament doc if brackets grow.",
+    "adapters/relay.py DEFAULT_ASSIGNMENTS + squad_assignments() merges with a role-value whitelist; unknown station keys are silently dropped in PUT /api/squad (verified). Consider surfacing a 200 body warning listing dropped keys so users notice typos.",
+    "Broadcast.jsx exposes data-reaction on the root — great for tests; ensure the same attribute isn't set on inner three.js Mesh nodes (the previous crash cause). Verified no console errors during replay."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_relay_share_leaderboard.py"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 new; previous 67/68 unchanged)",
+    "frontend": "100% of tested flows (public tournament, crowd reactions data-reaction + mute toggle, relay controls, share bar, leaderboard filters)"
+  },
+  "test_credentials": "admin@steps.dev / ArenaAdmin!2026; pro@steps.dev / ProCrab!2026; free@steps.dev / FreeCrab!2026",
+  "seed_data_creation": "TestShareOwnership.test_share_lifecycle temporarily revoked and regenerated the share on Tidepool Cup. Post-suite the DB was manually restored to share_slug=SZj1o0S3sOkhqHvY, share_enabled=true so the public link keeps working for future tests. TestRelayValidation.test_relay_empty_slot_409 temporarily cleared the scout slot then restored the original squad.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && pytest tests/test_relay_share_leaderboard.py -v. The rate-limit test hits 127.0.0.1:8001 directly to avoid replica-splitting; if you must test via the public URL, expect false negatives. If a run of TestShareOwnership.test_share_lifecycle leaves Tidepool Cup with a fresh slug (not SZj1o0S3sOkhqHvY), restore it with: db.tournaments.update_one({'name':'Tidepool Cup'},{'$set':{'share_slug':'SZj1o0S3sOkhqHvY','share_enabled':True}}). Login endpoint IP-rate-limited to 10/60s. Do NOT start new real relay runs (~60-90s real LLM cost); the seeded score-71 relay is already on the leaderboard.",
+  "rca of the issue": "N/A — no failing tests."
+}

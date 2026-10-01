@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone
+from typing import Optional
 
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -104,12 +105,14 @@ async def delete_challenge(challenge_id: str, user: dict = Depends(current_user)
 
 
 @router.get("/leaderboard/{course_id}")
-async def leaderboard(course_id: str):
+async def leaderboard(course_id: str, mode: Optional[str] = None):
     if course_id not in COURSES:
         raise HTTPException(404, "Course not found")
-    attempts = [a async for a in db.course_attempts.find({"course_id": course_id, "verified": True}).sort("score.total", -1).limit(50)]
+    attempts = [a async for a in db.course_attempts.find({"course_id": course_id, "verified": True}).sort("score.total", -1).limit(100)]
     run_ids = [ObjectId(a["run_id"]) for a in attempts if a.get("run_id")]
     runs = {str(r["_id"]): r async for r in db.runs.find({"_id": {"$in": run_ids}}, {"steps": 0})}
+    if mode in ("relay", "solo"):
+        attempts = [a for a in attempts if ((runs.get(a.get("run_id") or "") or {}).get("adapter") == "relay") == (mode == "relay")][:50]
     crab_ids = [ObjectId(r["crab_id"]) for r in runs.values() if r.get("crab_id")]
     crabs = {str(c["_id"]): c async for c in db.crabs.find({"_id": {"$in": crab_ids}})}
     rows = []
@@ -120,6 +123,8 @@ async def leaderboard(course_id: str):
         rows.append({"attempt_id": str(a["_id"]), "badge": "verified" if run else "self_reported",
                      "agent": (crab or {}).get("name") or (run or {}).get("champion_label") or look.get("name") or a["agent_label"],
                      "adapter": (run or {}).get("adapter") or "self_reported", "model": (run or {}).get("model") or look.get("model"),
+                     "mode": "relay" if (run or {}).get("adapter") == "relay" else "solo",
+                     "squad": [leg["name"] for leg in look.get("legs", [])] if (run or {}).get("adapter") == "relay" else None,
                      "color": look.get("color"), "accent": look.get("accent"), "accessory": look.get("accessory"),
                      "score": a["score"]["total"], "elapsed_s": a["score"]["elapsed_s"], "steps": a["score"].get("steps"), "decoys": a["decoys"],
                      "run_id": a.get("run_id") if run and run.get("is_public") else None, "recording_url": a.get("recording_url"),

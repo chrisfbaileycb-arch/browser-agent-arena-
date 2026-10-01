@@ -35,6 +35,8 @@ class Step(BaseModel):
     url: str = ""
     screenshot: str = ""
     llm_ms: int = 0
+    leg: Optional[int] = None
+    role: str = ""
 
 
 class Run(BaseDocument):
@@ -56,6 +58,8 @@ class Run(BaseDocument):
     safety: dict[str, Any] = {}
     steps: list[Step] = []
     hints: list[dict[str, Any]] = []
+    legs: list[dict[str, Any]] = []
+    relay_failure: Optional[str] = None
     steps_used: int = 0
     max_steps: int
     timeout_s: float

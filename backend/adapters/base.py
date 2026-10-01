@@ -25,6 +25,7 @@ class BrowserSession:
     user_id: str = ""
     public_url: str = ""
     pull_hints: Optional[Callable[[], Awaitable[list]]] = None
+    run_id: str = ""
 
 
 class AgentAdapter(ABC):

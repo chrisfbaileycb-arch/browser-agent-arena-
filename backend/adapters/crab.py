@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import re
 import time
 from datetime import datetime, timezone
 
@@ -163,6 +164,22 @@ def label_for(obs: dict, target: str) -> str:
     return ""
 
 
+def station_of(url: str) -> str:
+    match = re.search(r"/courses/[^/]+/([a-z]+)", url or "")
+    return match.group(1) if match else ""
+
+
+def system_for(profile: dict) -> str:
+    system = SYSTEM
+    if profile.get("name"):
+        system += f"\n\nYou are the crab named {profile['name']}. Personality: {profile.get('personality', 'focused')}."
+    if profile.get("system_prompt"):
+        system += f"\nOwner instructions: {profile['system_prompt'][:1500]}"
+    if profile.get("memory"):
+        system += "\nWhat worked in your previous runs:\n- " + "\n- ".join(profile["memory"][-6:])
+    return system
+
+
 class CrabAdapter(AgentAdapter):
     id, name, vendor = "crab", "Custom Crab", "Steps of Execution"
     description = "Our own observe → decide → act loop (simplified DOM + screenshot, one action per step)."
@@ -171,24 +188,26 @@ class CrabAdapter(AgentAdapter):
         return profile.get("provider") or "gemini"
 
     async def run(self, session: BrowserSession) -> AdapterOutcome:
-        page, history, profile = session.page, [], session.profile
+        outcome, _ = await self.loop(session, session.profile)
+        return outcome
+
+    async def loop(self, session: BrowserSession, profile: dict, start_n: int = 1, stop=None, meta=None,
+                   history=None) -> tuple[AdapterOutcome, int]:
+        """Runs one crab from step start_n; `stop(station)` returning True hands the browser to the next relay leg."""
+        page, history, meta = session.page, history or [], meta or {}
         provider = self.required_provider(profile)
         model = profile.get("model") if profile.get("model") in MODELS[provider] else MODELS[provider][0]
         api_key = (await session.resolve_key(provider))["key"]
-        system = SYSTEM
-        if profile.get("name"):
-            system += f"\n\nYou are the crab named {profile['name']}. Personality: {profile.get('personality', 'focused')}."
-        if profile.get("system_prompt"):
-            system += f"\nOwner instructions: {profile['system_prompt'][:1500]}"
-        if profile.get("memory"):
-            system += "\nWhat worked in your previous runs:\n- " + "\n- ".join(profile["memory"][-6:])
-        for n in range(1, session.max_steps + 1):
+        system = system_for(profile)
+        for n in range(start_n, session.max_steps + 1):
             remaining = session.remaining()
             if remaining <= 1:
-                return AdapterOutcome("timeout")
+                return AdapterOutcome("timeout"), n - 1
             if session.pull_hints:
                 history += [f"COACH SHOUT from your owner (follow it unless the page instructions contradict it): {h}" for h in await session.pull_hints()]
             obs = await observe(page)
+            if stop and stop(station_of(obs["url"])):
+                return AdapterOutcome("handoff"), n - 1
             shot_url, shot = await session.screenshot(f"step-{n:02d}.jpg")
             t0 = time.monotonic()
             try:
@@ -196,7 +215,7 @@ class CrabAdapter(AgentAdapter):
                                                            base64.b64encode(shot).decode(), provider=provider, model=model, api_key=api_key),
                                                   timeout=remaining)
             except asyncio.TimeoutError:
-                return AdapterOutcome("timeout")
+                return AdapterOutcome("timeout"), n - 1
             except Exception as exc:  # noqa: BLE001
                 decision = {"action": "invalid", "reasoning": f"LLM error: {str(exc)[:160]}"}
             llm_ms = int((time.monotonic() - t0) * 1000)
@@ -204,11 +223,11 @@ class CrabAdapter(AgentAdapter):
             action, target = str(decision.get("action", "")).lower(), str(decision.get("target") or "")
             step = Step(n=n, at=datetime.now(timezone.utc).isoformat(), action=action, target=target, target_label=label_for(obs, target),
                         value=str(decision.get("value") or "")[:300], reasoning=str(decision.get("reasoning") or "")[:600],
-                        ok=ok, detail=detail, url=obs["url"], screenshot=shot_url, llm_ms=llm_ms)
+                        ok=ok, detail=detail, url=obs["url"], screenshot=shot_url, llm_ms=llm_ms, **meta)
             await session.record(step)
             history.append(f"Step {n}: {action} {target} ({step.target_label}) value='{step.value}' -> {'ok' if ok else 'ERROR ' + detail}")
             if action == "done":
-                return AdapterOutcome("agent_done", step.value)
+                return AdapterOutcome("agent_done", step.value), n
             if action == "fail":
-                return AdapterOutcome("agent_gave_up")
-        return AdapterOutcome("max_steps")
+                return AdapterOutcome("agent_gave_up"), n
+        return AdapterOutcome("max_steps"), session.max_steps

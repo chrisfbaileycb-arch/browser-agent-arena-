@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Crown, Trophy } from "lucide-react";
-import { api, post } from "../api";
+import { Copy, Crown, Share2, Trophy } from "lucide-react";
+import { api, del, post } from "../api";
 import Crab from "./Crab";
 import { Btn, Card, Notice } from "./ui";
 
@@ -42,6 +42,31 @@ export function Bracket({ t, onWatch }) {
   );
 }
 
+function ShareBar({ t, reload }) {
+  const [msg, setMsg] = useState("");
+  const link = t.share_enabled && t.share_slug ? `${window.location.origin}/t/${t.share_slug}` : null;
+  const card = link && encodeURIComponent(`${window.location.origin}/api/public/t/${t.share_slug}/card`);
+  const act = fn => fn().then(reload).catch(e => setMsg(e.message));
+  const copy = () => navigator.clipboard.writeText(link).then(() => setMsg("Link copied!")).catch(() => setMsg(link));
+  return (
+    <div className="share-bar" data-testid="share-bar">
+      <Share2 size={16} />
+      {link ? (
+        <>
+          <code className="mono small" data-testid="share-link">{link}</code>
+          <Btn onClick={copy} testId="share-copy-btn"><Copy size={14} /> Copy link</Btn>
+          <a className="btn btn-ghost" href={`https://twitter.com/intent/tweet?url=${card}&text=${encodeURIComponent(`${t.name} on Browser Agent Arena`)}`} target="_blank" rel="noreferrer" data-testid="share-x-link">Post</a>
+          <a className="btn btn-ghost" href={`https://www.linkedin.com/sharing/share-offsite/?url=${card}`} target="_blank" rel="noreferrer" data-testid="share-linkedin-link">LinkedIn</a>
+          <Btn kind="ghost" onClick={() => act(() => post(`/tournaments/${t.id}/share`))} testId="share-regenerate-btn">Regenerate</Btn>
+          <Btn kind="ghost" onClick={() => act(() => del(`/tournaments/${t.id}/share`))} testId="share-revoke-btn">Turn off</Btn>
+        </>
+      ) : <Btn onClick={() => act(() => post(`/tournaments/${t.id}/share`))} testId="share-create-btn">Create public link</Btn>}
+      <small className="muted" data-testid="share-views">{t.views || 0} views</small>
+      {msg && <small data-testid="share-msg">{msg}</small>}
+    </div>
+  );
+}
+
 export default function TournamentPanel({ crabs, champions, adapters, preset, onWatch }) {
   const [picked, setPicked] = useState([]);
   const [list, setList] = useState([]);
@@ -73,6 +98,7 @@ export default function TournamentPanel({ crabs, champions, adapters, preset, on
       <Btn onClick={start} disabled={picked.length < 2} testId="start-tournament-btn">Start tournament ({picked.length})</Btn>
       <Notice kind="error" testId="tournament-error">{error}</Notice>
       {list.length > 1 && <div className="row wrap">{list.map(t => <button key={t.id} className={`chip ${current?.id === t.id ? "on" : ""}`} onClick={() => setCurrent(t)}>{t.name} · {t.status}</button>)}</div>}
+      {current && <ShareBar t={current} reload={load} />}
       {current && <Bracket t={current} onWatch={onWatch} />}
     </Card>
   );

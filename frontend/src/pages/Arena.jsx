@@ -59,6 +59,12 @@ export default function Arena() {
   const [busy, setBusy] = useState(false);
   const [champions, setChampions] = useState([]);
   const [preset, setPreset] = useState([]);
+  const startRelay = async opponent => {
+    const ids = [(await post("/runs", { course_id: "obstacle-1", adapter: "relay" })).id];
+    if (opponent) ids.push((await post("/runs", { course_id: "obstacle-1", crab_id: opponent, adapter: "crab" })).id);
+    setRuns(ids);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
   useEffect(() => {
     api("/adapters").then(setAdapters).catch(() => {});
     api("/champions").then(setChampions).catch(() => {});
@@ -120,7 +126,8 @@ export default function Arena() {
       )}
       {user && (
         <>
-          <SquadCard crabs={crabs} onEnter={ids => { setPreset(ids); document.getElementById("tournament")?.scrollIntoView({ behavior: "smooth" }); }} />
+          <SquadCard crabs={crabs} champions={champions} onRelay={startRelay}
+            onEnter={ids => { setPreset(ids); document.getElementById("tournament")?.scrollIntoView({ behavior: "smooth" }); }} />
           <div id="tournament">
             <TournamentPanel crabs={crabs} champions={champions} adapters={adapters} preset={preset}
               onWatch={ids => { setRuns(ids.filter(Boolean)); window.scrollTo({ top: 0, behavior: "smooth" }); }} />

@@ -29,6 +29,8 @@ def parse_json(text: str) -> dict:
 async def ask_json(system: str, text: str, image_b64: Optional[str] = None, *, provider: Optional[str] = None,
                    model: Optional[str] = None, api_key: Optional[str] = None) -> dict:
     """provider/model/api_key come from the running user's key resolver; defaults are only used by the platform safety filter."""
+    if provider and not api_key:
+        raise ValueError("No API key resolved for this run; refusing to fall back to the platform key.")
     default_provider, default_model = platform_model()
     chat = LlmChat(api_key=api_key or os.environ["EMERGENT_LLM_KEY"], session_id=str(uuid.uuid4()), system_message=system
                    ).with_model(provider or default_provider, model or default_model)

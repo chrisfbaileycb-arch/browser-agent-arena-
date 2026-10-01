@@ -19,6 +19,7 @@ import Login from "./pages/Login";
 import PublicTournament from "./pages/PublicTournament";
 import Invite from "./pages/Invite";
 import Profile from "./pages/Profile";
+import Hall from "./pages/Hall";
 import "./styles.css";
 
 function Protected({ children }) {
@@ -57,6 +58,7 @@ function AppRoutes() {
           <Route path="/t/:slug" element={<PublicTournament />} />
           <Route path="/c/:slug" element={<Invite />} />
           <Route path="/profile" element={guard(<Profile />)} />
+          <Route path="/hall" element={<Hall />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AnimatePresence>

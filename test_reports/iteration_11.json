@@ -1,0 +1,30 @@
+{
+  "summary": "Real-key / BYOK + Stripe e2e verification. All 10 backend tests passed (ALLOW_PLATFORM_KEY_FOR_DEV=false; GET /api/keys returns platform_dev=false for every provider on every seeded user; crab run as free with no keys -> 412 'Add your Google Gemini key in My Keys to run this.'; relay run as pro with no keys -> 412 'Squad crab Scout Sally (Scout) needs your Google Gemini key.'; all 5 providers reject fake-key-12345678 with their verbatim provider errors). /keys UI: key-input/save/test/delete and key-msg-<p>, key-status-<p> wire the real provider error text and last-test timestamp correctly (verified anthropic+gemini in UI; backend confirmed all 5 messages). Stripe test-mode end-to-end succeeded: upgrade-pro-btn -> Stripe sandbox -> card accordion -> 4242 4242 4242 4242, 12/34, 123, US/NY/10001, Subscribe -> /payment/success?session_id=cs_test_... -> payment-state 'Welcome to Pro', GET /api/payments/status/<id> payment_status=paid, GET /api/auth/me plan=pro, plan_until=2026-11-01. free@steps.dev plan was reset back to 'free' with plan_until=null. Regression smoke /, /arena, /leaderboard, /hall render with 0 console errors.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_realkey_flow.py",
+    "/app/test_reports/pytest/realkey_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "keys.py: dev_allowed() reads os.environ['ALLOW_PLATFORM_KEY_FOR_DEV'] on every request without caching and will KeyError if the env var is ever missing. Minor: cache or default to 'false'.",
+    "keys.py: validate() hard-codes provider URLs/headers inline; fine for now but a provider map constant at module scope would be cleaner and testable.",
+    "Keys.jsx (saw via UI): 'Save' button clearly works; consider disabling 'Test key' until a key is saved to avoid 404s when the field is empty.",
+    "Stripe Pricing.jsx: upgrade() swallows any non-string error; wrap in try/catch that stringifies network errors so pricing-error always shows something readable."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_realkey_flow.py"
+  ],
+  "success_rate": { "backend": "100% (10/10)", "frontend": "100%" },
+  "test_credentials": "free@steps.dev / FreeCrab!2026 (reset to plan=free), pro@steps.dev / ProCrab!2026, admin@steps.dev / ArenaAdmin!2026. Stripe test card 4242 4242 4242 4242 12/34 CVC 123.",
+  "seed_data_creation": "None. Any fake keys saved during tests were deleted; free user's plan was reset to 'free'/plan_until=null in Mongo after Stripe test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "ALLOW_PLATFORM_KEY_FOR_DEV=false is live. Backend /api/keys/<provider>/test is rate-limited to 10/min/user — if you run backend tests first, UI /keys 'Test key' clicks will 429 for ~60s; wait between runs. Stripe sandbox requires Billing Address line 1 + City + Phone to pass; use #billingAddressLine1, #billingLocality, #billingPostalCode, #phoneNumber. Card accordion button data-testid='card-accordion-item-button' must be clicked via JS .click() (Playwright treats its clickable rect as outside viewport even when visible).",
+  "rca of the issue": "N/A — nothing broken. All real-key enforcement + Stripe test-mode flows passed on the first clean run."
+}

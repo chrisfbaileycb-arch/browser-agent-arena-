@@ -6,6 +6,7 @@ import { googleLogin, useAuth } from "../auth";
 import Crab from "../components/Crab";
 import SelfReport from "../components/SelfReport";
 import { ShareLinks } from "../components/ChallengeInvite";
+import Streak from "../components/Streak";
 import { COURSES } from "../components/courses";
 import { Btn, Card, Notice, Page } from "../components/ui";
 
@@ -56,6 +57,7 @@ export default function Invite() {
       )}
       {active && user && inv.is_inviter && <Notice testId="invite-own">This is your challenge. Share the link with a friend.</Notice>}
       {inv.is_rematch && <p className="invite-chain" data-testid="invite-rematch-label">Rematch #{inv.rematch_n}{inv.beat_margin_s != null && ` · ${inv.inviter} beat the last time by ${inv.beat_margin_s}s`}</p>}
+      {inv.streak && <Card testId="invite-streak-card"><h3>Your rivalry</h3><Streak s={inv.streak} testId="invite-streak" /></Card>}
       {inv.my_result && (
         <Card testId="invite-my-result">
           <h3>Your result: {inv.my_result.elapsed_s}s (score {inv.my_result.score})</h3>

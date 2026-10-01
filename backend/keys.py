@@ -63,7 +63,21 @@ async def validate(provider: str, key: str) -> tuple[bool, str]:
             r = await client.request(method, url, headers=headers, json=body)
     except httpx.HTTPError as exc:
         return False, f"Could not reach {PROVIDERS[provider]}: {exc}"[:200]
-    return (True, "Key works") if r.status_code == 200 else (False, f"{PROVIDERS[provider]} rejected the key (HTTP {r.status_code}).")
+    if r.status_code == 200:
+        return True, f"{PROVIDERS[provider]} accepted the key (HTTP 200)."
+    return False, f"{PROVIDERS[provider]} rejected the key (HTTP {r.status_code}): {provider_error(r)}"[:400]
+
+
+def provider_error(r: httpx.Response) -> str:
+    """The provider's own error message, verbatim when it sends one."""
+    try:
+        data = r.json()
+    except ValueError:
+        return r.text.strip()[:300] or r.reason_phrase
+    err = data.get("error", data) if isinstance(data, dict) else data
+    if isinstance(err, dict):
+        return str(err.get("message") or err.get("detail") or err)[:300]
+    return str(data.get("detail") or err)[:300] if isinstance(data, dict) else str(err)[:300]
 
 
 @router.get("")

@@ -24,3 +24,11 @@ Relay/share test data (pro@steps.dev): squad = Scout Sally (scout), Pinchy (extr
 - Admin flag: users.role == "admin" (admin@steps.dev). Admin can revoke weekly badges (DELETE /api/admin/badges/{id}, or Revoke link on Home Course of the Week) and override the featured course.
 - Weekly badge award logic test (synthetic far-past week, self-cleaning): `cd /app/backend && python3 tests/weekly_check.py`
 - Rematch: pro@steps.dev invites free@steps.dev; after free beats pro's time on that invite, free sees "Send rematch"; the rematch is reserved for pro.
+- Hall of Champions: public at /hall (no login). Shows nothing until a week with real winners closes (first close Monday 2026-10-05 00:00 UTC).
+- Rematch streaks: visible only to the two participants (pro@steps.dev and free@steps.dev in tests) on /arena My challenges, /profile, /c/<slug>.
+- Coach history: Arena → squad card → Leg coach. Apply/undo go through POST /api/squad/coach/apply and /undo (pro@steps.dev has a full squad).
+
+## Real-key testing mode (current)
+- Platform/dev key fallback flag: `ALLOW_PLATFORM_KEY_FOR_DEV` in `/app/backend/.env`. Now set to `false` → every run (crab, computer-use, relay, workflow, tournaments, champion runs) uses ONLY the keys saved on My Keys; missing key → run stops with a 412 naming the provider. Set it to `true` (and restart backend: `sudo supervisorctl restart backend`) to re-enable the platform key for accounts flagged `dev_platform_key`. The URL safety classifier still uses the platform key (platform infrastructure, not a run).
+- My Keys "Test key" calls the provider for real (Anthropic /v1/models, OpenAI /v1/models, Gemini /v1beta/models, OpenRouter /api/v1/key, Tavily /search) and shows the provider's exact error message.
+- Stripe test mode: Pricing → Upgrade → Stripe Checkout (sandbox). Card 4242 4242 4242 4242, any future expiry (12/34), any CVC (123), any US address/ZIP. Success page polls /api/payments/status and upgrades the plan to pro.

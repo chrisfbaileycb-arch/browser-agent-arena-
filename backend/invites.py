@@ -84,6 +84,72 @@ async def result_for(inv: dict, uid: str) -> Optional[dict]:
             "margin_s": round(tt["elapsed_s"] - elapsed, 1) if tt else None, "rematch_slug": child["slug"] if child else None}
 
 
+async def root_of(inv: dict) -> dict:
+    for _ in range(60):
+        if not inv.get("parent_id"):
+            return inv
+        parent = await db.invites.find_one({"_id": ObjectId(inv["parent_id"])})
+        if not parent:
+            return inv
+        inv = parent
+    return inv
+
+
+async def round_of(inv: dict, invitee: str) -> dict:
+    tt = await time_to_beat(inv)
+    att = await db.course_attempts.find_one({"invite_id": str(inv["_id"]), "user_id": invitee, "verified": True}, sort=[("score.elapsed_s", 1)])
+    t = att["score"]["elapsed_s"] if att else None
+    out = {"n": inv.get("rematch_n", 0), "slug": inv["slug"], "course_id": inv["course_id"], "setter": inv["user_id"], "invitee": invitee,
+           "setter_time_s": tt["elapsed_s"] if tt else None, "invitee_time_s": t, "winner": None, "margin_s": None}
+    if t is None:
+        out["status"] = "pending" if invite_status(inv) in ("active", "full") else "expired"
+    else:
+        win = tt is None or t < tt["elapsed_s"]
+        out.update(status="done", winner=invitee if win else inv["user_id"], margin_s=round(abs(tt["elapsed_s"] - t), 1) if tt else None)
+    return out
+
+
+async def streak_for(root: dict, friend: str, viewer: str) -> Optional[dict]:
+    a = root["user_id"]
+    if viewer not in (a, friend):
+        return None
+    rounds, cur, invitee = [], root, friend
+    while cur and len(rounds) < 50:
+        rounds.append(await round_of(cur, invitee))
+        nxt = await db.invites.find_one({"parent_id": str(cur["_id"]), "user_id": invitee})
+        cur, invitee = nxt, cur["user_id"]
+    names = {u: display_name(await db.users.find_one({"_id": ObjectId(u)}, {"name": 1})) for u in (a, friend)}
+    other = friend if viewer == a else a
+    done = [r for r in rounds if r["winner"]]
+    score = {u: sum(r["winner"] == u for r in done) for u in (a, friend)}
+    run = 0
+    for r in reversed(done):
+        if r["winner"] != done[-1]["winner"]:
+            break
+        run += 1
+    margins = [r for r in done if r["margin_s"] is not None]
+    big = max(margins, key=lambda r: r["margin_s"]) if margins else None
+    label = lambda u: "You" if u == viewer else names[u]  # noqa: E731
+    lead = "Tied" if score[viewer] == score[other] else f"{label(viewer if score[viewer] > score[other] else other)} lead{'' if score[viewer] > score[other] else 's'}"
+    return {"you": score[viewer], "them": score[other], "them_name": names[other], "score_text": f"You {score[viewer]} – {score[other]} {names[other]}",
+            "lead_text": f"{lead} {max(score.values())}–{min(score.values())}" if lead != "Tied" else f"Tied {score[viewer]}–{score[other]}",
+            "streak_text": f"{label(done[-1]['winner'])} won the last {run}" if done else None,
+            "biggest_margin": {"winner": label(big["winner"]), "margin_s": big["margin_s"], "round": big["n"]} if big else None,
+            "rounds": [{**{k: r[k] for k in ("n", "slug", "course_id", "status", "margin_s", "setter_time_s", "invitee_time_s")},
+                        "setter": label(r["setter"]), "invitee": label(r["invitee"]), "winner": label(r["winner"]) if r["winner"] else None} for r in rounds]}
+
+
+async def streak_at(inv: dict, viewer: str) -> Optional[dict]:
+    """Streak for the pair this invite belongs to, if the viewer is one of the two participants."""
+    root = await root_of(inv)
+    if inv.get("parent_id"):
+        pair = {inv["user_id"], inv.get("target_user_id")}
+        friend = next((u for u in pair if u != root["user_id"]), None)
+    else:
+        friend = viewer if viewer != root["user_id"] else None
+    return await streak_for(root, friend, viewer) if friend else None
+
+
 async def check_invite_limits(uid: str) -> None:
     rate_limit("invite", uid, 5)
     since = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
@@ -108,6 +174,7 @@ async def create_invite(body: InviteCreate, user: dict = Depends(current_user)):
     doc = {"slug": secrets.token_urlsafe(6), "user_id": uid, "inviter_name": display_name(user), "course_id": body.course_id,
            "agent_kind": body.agent_kind, "max_uses": body.max_uses, "uses": 0, "revoked": False,
            "created_at": now.isoformat(), "expires_at": (now + INVITE_TTL).isoformat()}
+    doc["fixed_beat"] = await time_to_beat(doc)
     res = await db.invites.insert_one(doc)
     return {"id": str(res.inserted_id), **await public_invite(doc)}
 
@@ -126,9 +193,11 @@ async def my_invites(user: dict = Depends(current_user)):
         for f, a in zip(friends, attempts):
             c = children.get(a["user_id"])
             f["rematch"] = {"slug": c["slug"], "n": c.get("rematch_n")} if c else None
+            f["streak"] = await streak_for(await root_of(inv), a["user_id"], uid) if not inv.get("parent_id") and c else None
         parent = await db.invites.find_one({"_id": ObjectId(inv["parent_id"])}, {"slug": 1}) if inv.get("parent_id") else None
         out.append({"id": str(inv["_id"]), **await public_invite(inv), "uses": inv["uses"], "max_uses": inv["max_uses"], "created_at": inv["created_at"],
                     "direction": "sent" if inv["user_id"] == uid else "received", "parent_slug": (parent or {}).get("slug"),
+                    "streak": await streak_at(inv, uid) if inv.get("parent_id") else None,
                     "counts": {"accepted": len(friends), "started": sum(f["started"] for f in friends), "finished": sum(f["verified"] for f in friends)},
                     "friends": friends})
     return out
@@ -177,6 +246,7 @@ async def invite_landing(slug: str, request: Request, user: Optional[dict] = Dep
     out["is_target"] = bool(user and str(user["_id"]) == inv.get("target_user_id"))
     out["reserved"] = bool(inv.get("target_user_id"))
     out["my_result"] = await result_for(inv, str(user["_id"])) if user else None
+    out["streak"] = await streak_at(inv, str(user["_id"])) if user and (inv.get("parent_id") or out["my_result"]) else None
     return out
 
 
@@ -208,8 +278,12 @@ async def rematch_inbox(user: dict = Depends(current_user)):
     async for inv in db.invites.find({"target_user_id": uid, "revoked": False}).sort("created_at", -1).limit(10):
         if invite_status(inv) != "active" or await db.course_attempts.find_one({"invite_id": str(inv["_id"]), "user_id": uid, "verified": True}):
             continue
+        st = await streak_at(inv, uid)
+        msg = f"{inv['inviter_name']} beat you by {inv.get('beat_margin_s')}s"
+        if st:
+            msg += f" · {st['lead_text']}"
         out.append({"slug": inv["slug"], "rematch_n": inv.get("rematch_n"), "course_id": inv["course_id"], "from": inv["inviter_name"],
-                    "margin_s": inv.get("beat_margin_s"), "message": f"{inv['inviter_name']} beat you by {inv.get('beat_margin_s')}s — rematch?"})
+                    "margin_s": inv.get("beat_margin_s"), "streak": st, "message": f"{msg} — rematch?"})
     return out
 
 

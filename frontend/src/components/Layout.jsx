@@ -9,7 +9,7 @@ import { useAuth } from "../auth";
 
 export const TABS = [
   ["/", "Home"], ["/arena", "Arena"], ["/course", "Obstacle Course"], ["/builder", "Crab Builder"], ["/workflow", "Workflow Lab"],
-  ["/studio", "Challenge Studio"], ["/leaderboard", "Leaderboard"], ["/tutorials", "Tutorials"], ["/export", "Export"], ["/pricing", "Pricing"],
+  ["/studio", "Challenge Studio"], ["/leaderboard", "Leaderboard"], ["/hall", "Hall of Champions"], ["/tutorials", "Tutorials"], ["/export", "Export"], ["/pricing", "Pricing"],
 ];
 
 export default function Layout({ children }) {

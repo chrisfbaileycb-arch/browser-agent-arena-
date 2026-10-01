@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 10 covered the new Hall of Champions + Rematch Streaks (streak_at) + Coach History batch. Backend: new pytest suite /app/backend/tests/test_hall_streaks_history.py — 21 passed, 1 skipped (22 total). Covers: (a) /api/hall empty shape with stats {total_weeks, most_crowns, reigning} + first_close_at = 2026-10-05T00:00:00+00:00; /api/hall/runs/<id> 404 for unknown + invalid id. (b) With temporary synthetic badges (1 verified pro kelp-2 run @ wk 2800, 1 self_reported admin obstacle-1 attempt @ wk 2799, 1 revoked verified @ wk 2798): /api/hall returns both verified+self_reported entries, excludes revoked, user_key is 6-char suffix only, no email/user_id/goal/system_prompt/*_key leaks on either /hall or /hall/runs/<id>; filters ?course_id= + ?category= work; stats.most_crowns includes pro's user_key suffix; stats.reigning lists per-course winner. /api/hall/runs/<verified_id> returns stripped run (steps, is_public=true, no sensitive keys); /api/hall/runs/<self_reported_id> and /api/hall/runs/<revoked_id> return 404. (c) streak_at semantics: /public/c/<slug> returns streak=null for root-only invite with no result; /invites/inbox messages all contain 'rematch'. (d) Coach history: /api/squad/coach/history returns list; 401/403 anonymous; apply returns 409 when no suggestion exists (pro currently in not_enough state); undo returns 404 for unknown and invalid ids. Regression: iteration 9 test_weekly_rematch_coach.py 19/19 passed; /api/featured, /api/badges/weekly, /api/squad/coach still OK. Frontend: /hall renders perfectly in anon mode — empty state 'No champions crowned yet — first week closes Mon, 05 Oct 2026 00:00 UTC', hall-stats with 3 cards, filters hall-course-* + hall-cat-*, nav link nav-hall-of-champions in top bar, cow-hall-link on Home. With 2 temp badges seeded in DB, /hall renders hall-entry-<id> for each, hall-badge-<id> with Crown + 'Kelp · Wk 39' / 'Tidepool · Wk 38 SR' chip, hall-score-<id> ('Score 88 · server time 42.1s'), hall-watch-<verified> button, hall-no-replay-<self_reported> label, hall-crowns-0 ('Pro 1'), hall-reigning-kelp-2 ('Kelp Forest Circuit: Pro · Kelp · Wk 39'). Clicking hall-watch opens hall-replay with 3D Broadcast stadium + RunPlayer. Filter self_reported hides verified entry. All synthetic data (badges, award markers, test invites, featured override) cleaned up post-run.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/public/c/{slug}", "issue": "When the parent invite is a root (no parent_id) and the viewer is the inviter but has no attempts yet, streak is null — correct per code. The streak_at helper only returns a streak when the viewer is one of the 2 participants on a rematch chain OR has a my_result. Covered but worth documenting."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Hall of Champions", "issues": ["Stats card 'Most crowns' shows '—' in anon-empty state (fine). When populated, numbers render after the winner name without separator comma — minor readability."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_hall_streaks_history.py",
+    "/app/backend/tests/test_weekly_rematch_coach.py",
+    "/app/test_reports/pytest/hall_streaks_history.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "hall.entry_of: user lookup uses ObjectId.is_valid gate; if user_id is somehow not an ObjectId string the badge still renders with winner='A racer' — graceful but means badges can orphan after a user hard-delete. Consider marking orphaned badges as revoked on user delete.",
+    "hall.hall endpoint caps entries to 60; stats aggregates over ALL badges (good) but if the DB grows to many weeks x courses this could become slow. Consider aggregating with mongo $group pipeline for most_crowns.",
+    "hall.hall_run uses hall_badge which rejects category=='self_reported' — correct, matches test expectations.",
+    "coach.leg_measure window is open-ended on the upper bound when undone_at is None — any new relay run after swap counts even if the swap is implicitly abandoned. Not a bug given explicit undo flow, but worth noting.",
+    "invites.send_rematch stores fixed_beat.self_reported=True even for harness-verified beats (carried over from iteration 9).",
+    "hall.first_name strips names to first word + 30 chars; good privacy. Does not use display_name from invites.py — small duplication across modules."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_hall_streaks_history.py (new)"
+  ],
+  "success_rate": {"backend": "100% (21 passed + 1 skipped of 22 new; 19/19 regression)", "frontend": "100% selectors + flows verified for Hall; cow-hall-link + nav link confirmed"},
+  "test_credentials": "admin@steps.dev / ArenaAdmin!2026, pro@steps.dev / ProCrab!2026, free@steps.dev / FreeCrab!2026 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Temporary synthetic data: 3 weekly_badges (verified pro kelp-2 wk 2800, self_reported admin obstacle-1 wk 2799, revoked verified wk 2798) + 3 weekly_awards markers (temp:true) + any invites created during streak tests. All removed in fixture teardown and verified: weekly_badges=0, awards.temp=0, recent invites=0, featured override reset to null. Pro's squad assignments NOT modified (apply swap was blocked by 409 as expected since status=not_enough).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Hall endpoints are stable. To exercise the apply/undo coach_history flow (status pending -> improved/worse -> undone with before/after bars), the next test would need to insert synthetic others' public relay runs (lost_s>0) + pro solo per-station records matching an alternative squad crab — then POST /squad/coach/apply with that suggestion. Current pro squad has not_enough runs so apply always returns 409 (verified). The streak_at UI assertions in /c/<slug> (invite-streak-card/-score/-run/-rounds) require a completed rematch pair — the iteration 9 context explains how to build one on kelp-2 via the kelp solver in tests/kelp_check.py.",
+  "rca of the issue": "N/A — no critical issues found."
+}

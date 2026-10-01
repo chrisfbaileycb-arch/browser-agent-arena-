@@ -356,7 +356,10 @@ async def public_run(slug: str, run_id: str, request: Request):
     run = await db.runs.find_one({"_id": to_oid(run_id)}) if run_in(doc, run_id) else None
     if not run:
         raise HTTPException(404, "Run not found in this tournament")
-    base = f"/api/public/t/{slug}/runs/{run_id}/screenshots"
+    return strip_run(run, run_id, f"/api/public/t/{slug}/runs/{run_id}/screenshots")
+
+
+def strip_run(run: dict, run_id: str, base: str) -> dict:
     prof = run.get("profile") or {}
     return {"id": run_id, "kind": "course", "adapter": run["adapter"], "status": run["status"], "model": run.get("model"),
             "champion_label": run.get("champion_label"), "course_id": run.get("course_id"), "display_url": COURSES[run.get("course_id") or "obstacle-1"]["name"],

@@ -6,6 +6,7 @@ import { useAuth } from "../auth";
 import { COURSES } from "./courses";
 import { ShareLinks } from "./ChallengeInvite";
 import { Badge, Card } from "./ui";
+import Streak from "./Streak";
 
 export default function InviteTracker({ compact = false }) {
   const { user } = useAuth();
@@ -45,11 +46,13 @@ export default function InviteTracker({ compact = false }) {
             <b>{inv.agent_label}</b> on {COURSES[inv.course_id].short}
             <span className="mono small" data-testid={`invite-counts-${inv.slug}`}>{inv.counts.accepted} accepted · {inv.counts.started} started · {inv.counts.finished} finished · {inv.uses}/{inv.max_uses} uses</span>
           </summary>
+          <Streak s={inv.streak} testId={`invite-streak-${inv.slug}`} />
           {inv.status === "active" && inv.direction === "sent" && <ShareLinks invite={inv} />}
           {inv.direction === "received" && <Link className="link" to={`/c/${inv.slug}`}>Open rematch</Link>}
           <ul className="invite-friends">{inv.friends.map((f, k) => (
             <li key={k}><b>{f.name}</b> · {f.verified ? `finished in ${f.elapsed_s}s (score ${f.score})` : f.finished ? "reached the finish, code not submitted" : f.started ? "racing…" : "accepted"}
-              {f.rematch && <> · <Link to={`/c/${f.rematch.slug}`} data-testid={`invite-chain-link-${f.rematch.slug}`}>sent you Rematch #{f.rematch.n}</Link></>}</li>
+              {f.rematch && <> · <Link to={`/c/${f.rematch.slug}`} data-testid={`invite-chain-link-${f.rematch.slug}`}>sent you Rematch #{f.rematch.n}</Link></>}
+              <Streak s={f.streak} testId={`friend-streak-${inv.slug}-${k}`} /></li>
           ))}{!inv.friends.length && <li className="muted">No one has accepted yet.</li>}</ul>
           {inv.status === "active" && inv.direction === "sent" && <button className="link" onClick={() => revoke(inv.id)} data-testid={`invite-revoke-${inv.slug}`}><X size={12} /> Revoke link</button>}
         </details>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Lightbulb, Undo2, Wand2 } from "lucide-react";
-import { api, put } from "../api";
+import { api, post } from "../api";
+import CoachHistory from "./CoachHistory";
 import { COURSES } from "./courses";
 import { Btn, Notice } from "./ui";
 
@@ -10,15 +11,16 @@ export default function SquadCoach({ courseId = "obstacle-1", squad, setSquad })
   const [data, setData] = useState(null);
   const [undo, setUndo] = useState(null);
   const [msg, setMsg] = useState("");
+  const [tick, setTick] = useState(0);
   const load = () => api(`/squad/coach?course_id=${courseId}`).then(setData).catch(e => setData({ status: "error", error: e.message, legs: [] }));
   useEffect(() => { setData(null); setUndo(null); setMsg(""); load(); }, [courseId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const save = (assignments, note) => put("/squad", { ...squad, assignments }).then(s => { setSquad(s); setMsg(note); load(); }).catch(e => setMsg(e.message));
+  const done = (r, note) => { setSquad(s => ({ ...s, ...r.squad })); setMsg(note); setTick(t => t + 1); load(); };
   const apply = () => {
-    const s = data.suggestion, prev = { ...squad.assignments };
-    setUndo(prev);
-    save({ ...prev, ...Object.fromEntries(s.stations.map(st => [st, s.role])) }, `${s.crab_name} now runs ${s.stations.join(", ")}.`);
+    const s = data.suggestion;
+    post("/squad/coach/apply", { course_id: courseId, stations: s.stations, role: s.role })
+      .then(r => { setUndo(r.history_id); done(r, `${s.crab_name} now runs ${s.stations.join(", ")}.`); }).catch(e => setMsg(e.message));
   };
-  const revert = () => { save(undo, "Swap undone."); setUndo(null); };
+  const revert = (id = undo) => post("/squad/coach/undo", { history_id: id }).then(r => { setUndo(null); done(r, "Swap undone."); }).catch(e => setMsg(e.message));
   if (!data) return <div className="coach-panel shimmer" data-testid="squad-coach-loading">Coach is reviewing your legs…</div>;
   const names = COURSES[courseId];
   const label = s => names.names[names.stations.indexOf(s)] || s;
@@ -36,7 +38,7 @@ export default function SquadCoach({ courseId = "obstacle-1", squad, setSquad })
         </div>
       )}
       {data.worst && !data.suggestion && <small className="muted" data-testid="squad-coach-no-swap">{data.suggestion_note}</small>}
-      {undo && <Btn kind="ghost" onClick={revert} testId="squad-coach-undo-btn"><Undo2 size={14} /> Undo swap</Btn>}
+      {undo && <Btn kind="ghost" onClick={() => revert()} testId="squad-coach-undo-btn"><Undo2 size={14} /> Undo swap</Btn>}
       {msg && <small data-testid="squad-coach-msg">{msg}</small>}
       {data.legs?.length > 0 && (
         <table className="lc-table coach-table" data-testid="squad-coach-table">
@@ -52,6 +54,7 @@ export default function SquadCoach({ courseId = "obstacle-1", squad, setSquad })
           ))}</tbody>
         </table>
       )}
+      <CoachHistory courseId={courseId} tick={tick} onUndo={revert} />
     </div>
   );
 }

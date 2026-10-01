@@ -1,9 +1,10 @@
 import statistics
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 
 from adapters.relay import ROLE_NAMES
 from arena_api import squad_assignments
@@ -118,3 +119,97 @@ async def squad_coach(course_id: str = "obstacle-1", user: dict = Depends(curren
                     "candidate_expected_s": exp, "current_expected_s": current, "gain_s": round(current - exp, 1), "basis_runs": min(n, cur_n)}
     return {"course_id": course_id, "status": "ok", "legs": legs, "worst": worst, "suggestion": best,
             "suggestion_note": None if best else "None of your other squad crabs has at least 2 recorded runs on these stations that beat the current crab."}
+
+
+BASELINE_N = 5
+AFTER_MIN = 2
+
+
+class ApplyBody(BaseModel):
+    course_id: str = Field(max_length=60)
+    stations: list[str] = Field(min_length=1, max_length=10)
+    role: str = Field(pattern=r"^(scout|gate|extract|settle)$")
+
+
+class UndoBody(BaseModel):
+    history_id: str = Field(max_length=40)
+
+
+async def leg_measure(uid: str, course_id: str, stations: list, after: Optional[str] = None, before: Optional[str] = None, last: Optional[int] = None) -> dict:
+    """Server time and steps spent on these stations in the user's own relay runs within a time window."""
+    order = station_ids(course_id)
+    window = {k: v for k, v in (("$gt", after), ("$lt", before)) if v}
+    q = {"user_id": uid, "course_id": course_id, "adapter": "relay", "status": {"$in": ["succeeded", "failed"]}, **({"created_at": window} if window else {})}
+    cursor = db.runs.find(q, {"steps.url": 1, "steps.at": 1, "steps.leg": 1, "legs": 1, "crab_id": 1}).sort("created_at", -1 if last else 1).limit(last or 50)
+    times, steps = [], []
+    async for run in cursor:
+        st = station_times(run, order)
+        if all(x in st for x in stations):
+            times.append(sum(st[x][0] for x in stations))
+            steps.append(sum(1 for s in run.get("steps", []) if any(f"/{x}?" in (s.get("url") or "") for x in stations)))
+    return {"n": len(times), "avg_time_s": avg(times), "avg_steps": avg(steps)}
+
+
+@router.post("/squad/coach/apply", status_code=201)
+async def apply_swap(body: ApplyBody, user: dict = Depends(current_user)):
+    uid = str(user["_id"])
+    advice = await squad_coach(body.course_id, user)
+    s = advice.get("suggestion")
+    if not s or s["stations"] != body.stations or s["role"] != body.role:
+        raise HTTPException(409, "That swap is no longer the coach's current suggestion. Refresh the coach.")
+    squad = await db.squads.find_one({"user_id": uid}) or {}
+    assign = squad_assignments(squad.get("assignments"))
+    from_role = assign.get(body.stations[0])
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {"user_id": uid, "course_id": body.course_id, "kind": "swap", "stations": body.stations, "from_role": from_role, "to_role": body.role,
+           "old_crab": {"id": advice["worst"]["crab_id"], "name": advice["worst"]["crab_name"]}, "new_crab": {"id": s["crab_id"], "name": s["crab_name"]},
+           "at": now, "predicted_gain_s": s["gain_s"], "basis_runs": s["basis_runs"], "undone_at": None,
+           "before": await leg_measure(uid, body.course_id, body.stations, before=now, last=BASELINE_N)}
+    await db.squads.update_one({"user_id": uid}, {"$set": {"assignments": {**assign, **{st: body.role for st in body.stations}}}}, upsert=True)
+    res = await db.coach_history.insert_one(doc)
+    saved = await db.squads.find_one({"user_id": uid}, {"_id": 0, "user_id": 0})
+    return {"history_id": str(res.inserted_id), "squad": saved}
+
+
+@router.post("/squad/coach/undo", status_code=201)
+async def undo_swap(body: UndoBody, user: dict = Depends(current_user)):
+    uid = str(user["_id"])
+    doc = await db.coach_history.find_one({"_id": ObjectId(body.history_id), "user_id": uid, "kind": "swap"}) if ObjectId.is_valid(body.history_id) else None
+    if not doc:
+        raise HTTPException(404, "Swap not found")
+    if doc.get("undone_at"):
+        raise HTTPException(409, "This swap was already undone.")
+    now = datetime.now(timezone.utc).isoformat()
+    squad = await db.squads.find_one({"user_id": uid}) or {}
+    assign = squad_assignments(squad.get("assignments"))
+    await db.squads.update_one({"user_id": uid}, {"$set": {"assignments": {**assign, **{st: doc["from_role"] for st in doc["stations"]}}}})
+    await db.coach_history.update_one({"_id": doc["_id"]}, {"$set": {"undone_at": now}})
+    await db.coach_history.insert_one({"user_id": uid, "course_id": doc["course_id"], "kind": "undo", "ref_id": str(doc["_id"]), "stations": doc["stations"],
+                                       "from_role": doc["to_role"], "to_role": doc["from_role"], "old_crab": doc["new_crab"], "new_crab": doc["old_crab"], "at": now})
+    return {"undone": True, "squad": await db.squads.find_one({"user_id": uid}, {"_id": 0, "user_id": 0})}
+
+
+async def history_view(doc: dict) -> dict:
+    out = {k: doc.get(k) for k in ("kind", "course_id", "stations", "from_role", "to_role", "old_crab", "new_crab", "at", "predicted_gain_s",
+                                   "basis_runs", "before", "undone_at", "ref_id")}
+    out["id"] = str(doc["_id"])
+    if doc["kind"] != "swap":
+        out["status"] = "undo"
+        return out
+    after = await leg_measure(doc["user_id"], doc["course_id"], doc["stations"], after=doc["at"], before=doc.get("undone_at"))
+    out["after"] = after
+    if after["n"] >= AFTER_MIN and doc["before"]["n"] >= 1:
+        saved = round(doc["before"]["avg_time_s"] - after["avg_time_s"], 1)
+        out["result"] = {"saved_s": saved, "runs": after["n"]}
+        out["status"] = "undone" if doc.get("undone_at") else "improved" if saved > 0 else "worse"
+    elif doc.get("undone_at"):
+        out["status"] = "undone"
+    else:
+        out["status"] = "no_baseline" if doc["before"]["n"] < 1 else "pending"
+    out["waiting"] = {"have": min(after["n"], AFTER_MIN), "need": AFTER_MIN}
+    return out
+
+
+@router.get("/squad/coach/history")
+async def coach_history(course_id: str = "obstacle-1", user: dict = Depends(current_user)):
+    return [await history_view(d) async for d in db.coach_history.find({"user_id": str(user["_id"]), "course_id": course_id}).sort("at", -1).limit(20)]

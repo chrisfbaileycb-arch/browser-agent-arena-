@@ -51,10 +51,10 @@ export default function CourseOfWeek() {
           </ol>
         ) : <p className="cow-empty" data-testid="cow-empty">No finishes on this course yet. Be the first on the board.</p>}
         <div className="cow-last" data-testid="cow-last-week">
-          <small className="eyebrow">Last week's winner</small>
+          <small className="eyebrow">Last week's winner · <Link to="/hall" className="link" data-testid="cow-hall-link">Hall of Champions</Link></small>
           {data.last_week?.length ? data.last_week.map((w, i) => (
             <div key={w.id} className="row wrap" data-testid={`cow-last-week-${i}`}>
-              <WeeklyBadge b={w} testId={`cow-last-badge-${i}`} /><b>{w.winner}</b><span className="mono small">{w.title} · score {w.score} · {w.elapsed_s}s</span>
+              <WeeklyBadge b={w} testId={`cow-last-badge-${i}`} /><Link to={`/hall#badge-${w.id}`} data-testid={`cow-last-winner-${i}`}><b>{w.winner}</b></Link><span className="mono small">{w.title} · score {w.score} · {w.elapsed_s}s</span>
               {user?.role === "admin" && <button className="link" onClick={() => del(`/admin/badges/${w.id}`).then(load)} data-testid={`cow-revoke-badge-${i}`}>Revoke</button>}
             </div>
           )) : <p className="muted" data-testid="cow-last-week-empty">No winner last week</p>}

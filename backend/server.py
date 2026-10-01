@@ -22,6 +22,8 @@ from arena_api import check_squad_keys, public_router, relay_profile, router as 
 from h2h import router as h2h_router  # noqa: E402
 from invites import router as invites_router  # noqa: E402
 from relay_legs import router as relay_legs_router  # noqa: E402
+from weekly import router as weekly_router  # noqa: E402
+from coach import router as coach_router  # noqa: E402
 from auth import current_user, is_pro, optional_user, router as auth_router, seed_users  # noqa: E402
 from billing import router as billing_router  # noqa: E402
 from course_api import router as course_router  # noqa: E402
@@ -207,7 +209,7 @@ async def get_screenshot(run_id: str, name: str, user: Optional[dict] = Depends(
     return FileResponse(path, media_type="image/jpeg")
 
 
-for r in (api, arena_router, public_router, auth_router, keys_router, endpoints_router, billing_router, course_router, platform_router, workflow_router, h2h_router, invites_router, relay_legs_router):
+for r in (api, arena_router, public_router, auth_router, keys_router, endpoints_router, billing_router, course_router, platform_router, workflow_router, h2h_router, invites_router, relay_legs_router, weekly_router, coach_router):
     app.include_router(r)
 @app.middleware("http")
 async def json_errors(request, call_next):
@@ -241,6 +243,10 @@ async def startup():
     await db.invites.create_index("slug", unique=True)
     await db.invites.create_index([("user_id", 1), ("created_at", -1)])
     await db.course_attempts.create_index("invite_id")
+    await db.invites.create_index("parent_id")
+    await db.invites.create_index("target_user_id")
+    await db.weekly_badges.create_index([("user_id", 1), ("course_id", 1)])
+    await db.weekly_badges.create_index("week")
     admin = await db.users.find_one({"email": os.environ["ADMIN_EMAIL"]})
     for name, provider, model, color, accent, accessory, personality in CHAMPIONS:
         await db.crabs.update_one({"name": name, "is_champion": True}, {"$setOnInsert": {

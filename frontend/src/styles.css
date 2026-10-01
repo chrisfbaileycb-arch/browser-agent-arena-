@@ -429,3 +429,23 @@ h3 { font-size: 1.2rem; } h4 { margin-top: 16px; }
 .cow-empty-art { height: 100%; display: grid; place-items: center; }
 .cow-admin { display: flex; gap: 8px; align-items: center; font-size: 13px; } .cow-admin select { color: #1B1530; }
 @media (max-width: 900px) { .cow { grid-template-columns: 1fr; } .lc-replay { grid-template-columns: 1fr; } }
+.weekly-badges { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; flex-wrap: wrap; }
+.weekly-badge { position: relative; display: inline-flex; gap: 4px; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  background: linear-gradient(135deg, #FFE17A, #E9A800); color: #3B2600; box-shadow: 0 0 0 1px #B07D00, 0 2px 8px rgba(233,168,0,.35); cursor: help; }
+.weekly-badge.self { background: linear-gradient(135deg, #FFF1B8, #F2C94C); }
+.weekly-badge small { font-size: 9px; opacity: .7; }
+.weekly-badge:hover::after, .weekly-badge:focus::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); width: max-content; max-width: 260px;
+  background: #1B1530; color: #fff; font-weight: 500; font-size: 12px; padding: 6px 10px; border-radius: 8px; z-index: 30; white-space: normal; animation: pop-in .2s ease-out; }
+.cc-weekly { margin: 4px 0; }
+.cow-last { margin: 12px 0; padding: 10px 12px; border-radius: 14px; background: rgba(255,210,63,.1); display: grid; gap: 6px; }
+.rematch-inbox { display: grid; gap: 6px; margin: 8px 0; }
+.rematch-note { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 12px; background: #FFF4C2; color: #1B1530; font-weight: 600; transition: transform .15s ease; }
+.rematch-note:hover { transform: translateX(3px); } .rematch-note small { opacity: .6; font-weight: 500; }
+.chain-tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #1B1530; color: #FFD23F; }
+.invite-chain { font-weight: 700; color: #B05A00; }
+.coach-panel { margin-top: 16px; padding: 16px; border-radius: 18px; background: #F7F3FF; display: grid; gap: 10px; }
+.coach-panel h4 { margin: 0; display: flex; gap: 6px; align-items: center; }
+.coach-empty { padding: 12px; border: 2px dashed rgba(27,21,48,.2); border-radius: 12px; margin: 0; }
+.coach-worst b { color: #C2410C; }
+.coach-swap { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; background: #fff; border-radius: 12px; border: 2px solid #12B5A5; }
+.coach-table tr { cursor: default; }

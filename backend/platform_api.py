@@ -10,6 +10,7 @@ from adapters.crab import OBSERVE_JS, SYSTEM
 from auth import current_user, require_pro
 from courses import COURSES
 from db import db
+from weekly import badges_by_user, ensure_awards
 from llm import MODELS
 from models import ChallengeInput, Crab, CrabInput
 
@@ -120,9 +121,13 @@ async def leaderboard(course_id: str, mode: Optional[str] = None, source: Option
         attempts = [a for a in attempts if ((runs.get(a.get("run_id") or "") or {}).get("adapter") == "relay") == (mode == "relay")][:50]
     crab_ids = [ObjectId(r["crab_id"]) for r in runs.values() if r.get("crab_id")]
     crabs = {str(c["_id"]): c async for c in db.crabs.find({"_id": {"$in": crab_ids}})}
+    await ensure_awards()
+    owners = {a.get("user_id") or (runs.get(a.get("run_id") or "") or {}).get("user_id") for a in attempts}
+    weekly = await badges_by_user(list(owners), course_id)
     rows = []
     for a in attempts:
         run = runs.get(a.get("run_id") or "")
+        owner = a.get("user_id") or (run or {}).get("user_id")
         crab = crabs.get((run or {}).get("crab_id") or "")
         look = crab or (run or {}).get("profile") or {}
         rows.append({"attempt_id": str(a["_id"]), "badge": "verified" if run else "self_reported",
@@ -134,7 +139,8 @@ async def leaderboard(course_id: str, mode: Optional[str] = None, source: Option
                      "score": a["score"]["total"], "elapsed_s": a["score"]["elapsed_s"], "steps": a["score"].get("steps"), "decoys": a["decoys"],
                      "run_id": a.get("run_id") if run and run.get("is_public") else None, "recording_url": a.get("recording_url"),
                      "agent_kind": a.get("agent_kind"), "reported_elapsed_s": a.get("reported_elapsed_s"),
-                     "submitted_at": a.get("submitted_at")})
+                     "submitted_at": a.get("submitted_at"),
+                     "weekly_badges": [] if (run or {}).get("champion_label") else weekly.get(owner, [])[:3]})
     return rows
 
 

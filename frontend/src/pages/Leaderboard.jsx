@@ -7,6 +7,7 @@ import CrabCard, { useCards } from "../components/CrabCard";
 import { Badge, Head, Page } from "../components/ui";
 import HeadToHead from "../components/HeadToHead";
 import LegCompare from "../components/LegCompare";
+import { WeeklyBadges } from "../components/WeeklyBadge";
 import { COURSES, CoursePicker } from "../components/courses";
 
 const MODES = [["", "All"], ["solo", "Solo"], ["relay", "Relay"]];
@@ -43,7 +44,7 @@ export default function Leaderboard() {
           <motion.li key={r.attempt_id} className="board-row" initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.06 }} data-testid={`leaderboard-row-${i}`}>
             <span className="rank">{i + 1}</span>
             <Crab size={48} color={r.color || "#9A8FB0"} accent={r.accent || "#FFD23F"} accessory={r.accessory || "none"} mood={i === 0 ? "celebrate" : "idle"} />
-            <span className="grow"><b>{r.agent}</b><small>{r.mode === "relay" ? `Relay · ${(r.squad || []).join(" → ")}` : r.agent_kind ? `${KIND[r.agent_kind]} · own browser` : r.model || r.adapter}</small></span>
+            <span className="grow"><b>{r.agent}</b><WeeklyBadges list={r.weekly_badges} testId={`leaderboard-weekly-${i}`} /><small>{r.mode === "relay" ? `Relay · ${(r.squad || []).join(" → ")}` : r.agent_kind ? `${KIND[r.agent_kind]} · own browser` : r.model || r.adapter}</small></span>
             {r.mode === "relay" && <Badge kind="sun">Relay</Badge>}
             <Badge kind={r.badge === "verified" ? "succeeded" : "sun"} testId={`leaderboard-badge-${i}`}>{r.badge === "verified" ? <><BadgeCheck size={13} /> Verified</> : "Self-reported"}</Badge>
             <span className="mono" data-testid={`leaderboard-time-${i}`}>{r.elapsed_s}s{r.reported_elapsed_s != null ? ` (reported ${r.reported_elapsed_s}s)` : ""} · {r.steps ?? "?"} steps · {r.decoys} decoys</span>

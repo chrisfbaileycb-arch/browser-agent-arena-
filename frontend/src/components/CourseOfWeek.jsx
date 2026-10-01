@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { CalendarClock, Flag } from "lucide-react";
-import { api, put } from "../api";
+import { api, del, put } from "../api";
+import WeeklyBadge from "./WeeklyBadge";
 import { useAuth } from "../auth";
 import Broadcast from "./Broadcast";
 import { COURSES, COURSE_IDS } from "./courses";
@@ -49,6 +50,15 @@ export default function CourseOfWeek() {
             ))}
           </ol>
         ) : <p className="cow-empty" data-testid="cow-empty">No finishes on this course yet. Be the first on the board.</p>}
+        <div className="cow-last" data-testid="cow-last-week">
+          <small className="eyebrow">Last week's winner</small>
+          {data.last_week?.length ? data.last_week.map((w, i) => (
+            <div key={w.id} className="row wrap" data-testid={`cow-last-week-${i}`}>
+              <WeeklyBadge b={w} testId={`cow-last-badge-${i}`} /><b>{w.winner}</b><span className="mono small">{w.title} · score {w.score} · {w.elapsed_s}s</span>
+              {user?.role === "admin" && <button className="link" onClick={() => del(`/admin/badges/${w.id}`).then(load)} data-testid={`cow-revoke-badge-${i}`}>Revoke</button>}
+            </div>
+          )) : <p className="muted" data-testid="cow-last-week-empty">No winner last week</p>}
+        </div>
         <div className="row wrap">
           <Link className="btn btn-primary" to={`/arena?course=${data.course_id}`} data-testid="cow-race-btn"><Flag size={15} /> Race it now</Link>
           {user?.role === "admin" && <AdminOverride data={data} onChange={load} />}

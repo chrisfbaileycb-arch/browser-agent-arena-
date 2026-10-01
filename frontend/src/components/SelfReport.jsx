@@ -42,7 +42,7 @@ function Result({ r }) {
   );
 }
 
-export default function SelfReport({ courseId = "obstacle-1" }) {
+export default function SelfReport({ courseId = "obstacle-1", onResult }) {
   const { user } = useAuth();
   const [ask, setAsk] = useState(false);
   const [kind, setKind] = useState("copilot");
@@ -71,7 +71,7 @@ export default function SelfReport({ courseId = "obstacle-1" }) {
   const submit = () => {
     setMsg("");
     post(`/course-attempts/${attempt.id}/submit`, { code: form.code, reported_elapsed_s: form.time ? Number(form.time) : undefined, recording_url: form.recording || undefined })
-      .then(r => { setResult(r); setAttempt(a => ({ ...a, submitted_at: r.submitted_at || "now" })); })
+      .then(r => { setResult(r); setAttempt(a => ({ ...a, submitted_at: r.submitted_at || "now" })); onResult?.(r); })
       .catch(e => setMsg(e.message));
   };
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));

@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 9: tested the Weekly Winner Badges + Rematch chain + Squad Leg Coaching batch end-to-end. Backend: ran existing synthetic weekly check (tests/weekly_check.py -> OK: 2 badges, tie-> fastest, champion excluded, idempotent). New pytest suite backend/tests/test_weekly_rematch_coach.py: 19/19 passing covering (a) /api/me/badges + /api/badges/weekly shape, /api/featured.last_week presence, admin-only revoke semantics (403 for free, 404 for unknown/invalid id); (b) full rematch chain on kelp-2: pro invites free -> free solves via scripted kelp solver + submits (elapsed 0.3s vs pro ~42s) -> /public/c/<slug> my_result.beat=true with margin ~41.8s -> POST /invites/<slug>/rematch returns child with is_rematch, rematch_n=1, uses_left=1, fixed time_to_beat; rematch idempotency (same slug on second POST); 409 when not beaten; pro's /invites/inbox shows message with 'beat you by Xs — rematch?'; /invites lists child as sent for free, received for pro, parent carries friend-row rematch pointer to child; third user (admin) gets 403 on reserved rematch; pro accepts with agent_kind='other' -> attempt agent_kind='other'. (c) /api/squad/coach shape on obstacle-1 + kelp-2, 404 invalid course, 401/403 anonymous. Frontend verified via Playwright with synthetic weekly_badge inserted for last week (user=pro, course=obstacle-1 wk 2959) + weekly_awards marker: Home anon shows cow-last-week-empty; with badge: cow-last-week-0 renders cow-last-badge-0 with Crown + 'Tidepool · Wk 39' + tooltip 'Weekly Champion · The Tidepool Gauntlet · week of 2026-09-21 · score 90 in 45s'; admin on Home sees cow-revoke-badge-0, clicking it removes the row and shows cow-last-week-empty (api DELETE /admin/badges/{id} 200). Pro /profile shows profile-badge-0 ('Tidepool · Wk 39'); admin /profile with no badges shows profile-badges-empty. Leaderboard /leaderboard?course=obstacle-1 shows 6 leaderboard-weekly-*-* crowns on pro's rows (one per visible row for the awarded user). Rematch UI: as free on /c/<slug>, invite-my-result + invite-beat-msg ('You beat Pro's time by 41.8s!') + invite-send-rematch-btn render; clicking the button creates child invite and share links render. As pro: Home invite-notifications card with rematch-note-0 ('Free beat you by 41.8s — rematch? Rematch #1 · Kelp Forest Circuit') + invite-result-0 ('Free finished your Kelp Forest Circuit challenge in 0.3s (score 100) · beat your time!'); Arena invite-tracker + rematch-inbox render with 2 invite-chain-* tags (parent + rematch). Squad coach panel squad-coach visible in Arena SquadCard with squad-coach-empty 'Not enough runs to coach yet.' and squad-coach-table rendered (not_enough status, both pro + others have <2 runs on current leg configuration). All synthetic data cleaned up (0 badges, 0 markers, 0 recent invites, featured override reset to null).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Arena (TournamentPanel)", "issues": ["React 'two children with the same key' warning for Card component in Tournament.jsx — duplicate tournament ids 6abd89a315178fd2139e14b2/b4/b6 appear in the tournament list. Not blocking but should be de-duplicated."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_weekly_rematch_coach.py",
+    "/app/test_reports/pytest/weekly_rematch_coach.xml"
+  ],
+  "action_items": [
+    "Minor: dedupe tournament list items (or ensure unique React keys) in Tournament.jsx to silence the duplicate-key warning seen in Arena.",
+    "Nice-to-have: WeeklyBadge tooltip uses data-tip (needs CSS :after/:before to show on hover); confirm it's styled on all surfaces (Home, Profile, Leaderboard, CrabCard). Visually it was present in DOM; actual tooltip visual not verified pixel-perfect."
+  ],
+  "critical_code_review_comments": [
+    "weekly.award_week uses a two-step marker: insert marker first then compute winners. If computation throws, the marker is deleted so a retry can succeed. Good. But if the process crashes between insert_one(marker) and the exception handler, the marker remains and no badges will be computed for that week. Consider wrapping in a transaction or storing a 'status' field so a periodic sweep can heal partial awards.",
+    "winners_of does one users.find_one per badge — fine at 1-2 badges/week but could be batched into a single $in query if the number of winners grows.",
+    "coach.station_times detects stations by substring match in step URL (f'/{st}?' or endswith '/{st}'). If a station id is a substring of another (e.g. 'ope' in 'rope'), the next() call would match incorrectly — currently safe because station ids are distinct words but worth noting.",
+    "coach.expected returns (None, min_runs_seen) when ANY station lacks enough samples; the min(n, cur_n) basis in /squad/coach uses that number which can be 0. The suggestion is only emitted when both current and candidate expected are non-None, so basis_runs>=MIN_RUNS==2 is guaranteed in that branch. Safe.",
+    "invites.send_rematch stores fixed_beat as self_reported=True even when the beating attempt was harness-verified (free's run via accept flow). Only cosmetic since fixed_beat is only used for the child's time_to_beat display, but misleading."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_weekly_rematch_coach.py (new)"
+  ],
+  "success_rate": {"backend": "100% (19/19 new + weekly_check OK)", "frontend": "100% selectors + flows verified"},
+  "test_credentials": "admin@steps.dev / ArenaAdmin!2026, pro@steps.dev / ProCrab!2026, free@steps.dev / FreeCrab!2026",
+  "seed_data_creation": "Temporary synthetic data created and deleted: 1 weekly_badges doc + 1 weekly_awards marker (week=current-1, course=obstacle-1, user=pro) for Home/Leaderboard/Profile rendering tests; 1 pro->free kelp-2 invite + free's accept attempt + free's child rematch invite for rematch UI flow. All removed; featured override reset to null. Pro's squad assignments were NOT modified (not_enough status so no apply swap tested). Preserved: all champion crabs, Kelp Relay Cup tournament, kelp-2 champion runs.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_weekly_rematch_coach.py uses kelp-2 (not obstacle-1) for the rematch chain because pro only has a verified time-to-beat on kelp-2 (~42s). The rematch flow relies on the kelp solver (puzzle answers for current/maze/crates/cave/lookalike) — ensure answers stay in sync if kelp station schema changes. The suite shares state across TestRematchFlow via a module-level _CTX dict (previously tried class-scoped instance fixture — pytest 9 instances aren't shared across methods). For squad coach suggestion-path UI (apply/undo), you need to insert synthetic others' public runs with matching leg keys + pro solo runs on the losing stations — the current suite only validates not_enough state since the DB doesn't have 2+ runs per leg for pro's current assignments. Watch rate limits: 5 invites/min/user (test_rematch_409_if_not_beaten + rematch_ctx consumes 2)."
+}

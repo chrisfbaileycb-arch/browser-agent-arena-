@@ -33,6 +33,7 @@ export default function Layout({ children }) {
           {user ? (
             <>
               <NavLink to="/keys" className="tab" data-testid="nav-my-keys"><KeyRound size={15} /> My Keys</NavLink>
+              <NavLink to="/profile" className="tab" data-testid="nav-profile">Profile</NavLink>
               <span className={`plan plan-${user.plan}`} data-testid="user-plan-badge">{user.plan}</span>
               <button className="icon-btn" onClick={() => { logout(); navigate("/"); }} aria-label="Log out" data-testid="logout-btn"><LogOut size={17} /></button>
             </>

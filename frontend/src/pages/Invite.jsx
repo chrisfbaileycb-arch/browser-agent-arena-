@@ -5,6 +5,7 @@ import { api, post } from "../api";
 import { googleLogin, useAuth } from "../auth";
 import Crab from "../components/Crab";
 import SelfReport from "../components/SelfReport";
+import { ShareLinks } from "../components/ChallengeInvite";
 import { COURSES } from "../components/courses";
 import { Btn, Card, Notice, Page } from "../components/ui";
 
@@ -16,8 +17,12 @@ export default function Invite() {
   const [inv, setInv] = useState(null);
   const [error, setError] = useState("");
   const [started, setStarted] = useState(0);
-  useEffect(() => { api(`/public/c/${slug}`).then(setInv).catch(e => setError(e.message)); }, [slug, user]);
-  const accept = () => { setError(""); post(`/invites/${slug}/accept`).then(() => setStarted(n => n + 1)).catch(e => setError(e.message)); };
+  const [kind, setKind] = useState(null);
+  const [rematch, setRematch] = useState(null);
+  const load = () => api(`/public/c/${slug}`).then(setInv).catch(e => setError(e.message));
+  useEffect(() => { load(); }, [slug, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  const accept = () => { setError(""); post(`/invites/${slug}/accept`, kind ? { agent_kind: kind } : {}).then(() => setStarted(n => n + 1)).catch(e => setError(e.message)); };
+  const sendRematch = () => { setError(""); post(`/invites/${slug}/rematch`).then(r => { setRematch(r); load(); }).catch(e => setError(e.message)); };
   if (error && !inv) return <Page testId="invite-page"><Card><h2>Challenge not found</h2><Notice kind="error" testId="invite-error">{error}</Notice></Card></Page>;
   if (!inv) return <Page testId="invite-page"><div className="card shimmer">Loading challenge…</div></Page>;
   const [color, accent, accessory] = LOOK[inv.agent_kind];
@@ -50,9 +55,24 @@ export default function Invite() {
         </Card>
       )}
       {active && user && inv.is_inviter && <Notice testId="invite-own">This is your challenge. Share the link with a friend.</Notice>}
-      {active && user && !inv.is_inviter && !started && <Btn onClick={accept} testId="invite-accept-btn">Start my {inv.agent_label} attempt</Btn>}
+      {inv.is_rematch && <p className="invite-chain" data-testid="invite-rematch-label">Rematch #{inv.rematch_n}{inv.beat_margin_s != null && ` · ${inv.inviter} beat the last time by ${inv.beat_margin_s}s`}</p>}
+      {inv.my_result && (
+        <Card testId="invite-my-result">
+          <h3>Your result: {inv.my_result.elapsed_s}s (score {inv.my_result.score})</h3>
+          {inv.my_result.beat ? <p data-testid="invite-beat-msg">You beat {inv.inviter}'s time by <b>{inv.my_result.margin_s}s</b>!</p>
+            : <p className="muted" data-testid="invite-not-beat-msg">{inv.time_to_beat ? `${inv.inviter}'s ${inv.time_to_beat.elapsed_s}s still stands.` : "Nice finish."}</p>}
+          {inv.my_result.beat && !inv.my_result.rematch_slug && !rematch && <Btn onClick={sendRematch} testId="invite-send-rematch-btn">Send rematch</Btn>}
+          {(rematch || inv.my_result.rematch_slug) && <ShareLinks invite={rematch || { slug: inv.my_result.rematch_slug, course_id: inv.course_id, agent_label: inv.agent_label, time_to_beat: { elapsed_s: inv.my_result.elapsed_s } }} />}
+        </Card>
+      )}
+      {active && user && inv.reserved && !inv.is_target && !inv.is_inviter && <Notice kind="error" testId="invite-reserved">This rematch is reserved for the racer it was sent to.</Notice>}
+      {active && user && inv.is_rematch && inv.is_target && !started && !inv.my_result && (
+        <div className="row wrap" data-testid="invite-kind-picker">Your agent: {[["copilot", "Copilot"], ["comet", "Comet"], ["other", "Other"]].map(([id, n]) => (
+          <button key={id} className={`chip ${(kind || inv.agent_kind) === id ? "on" : ""}`} onClick={() => setKind(id)} data-testid={`invite-kind-${id}`}>{n}</button>))}</div>
+      )}
+      {active && user && !inv.is_inviter && (!inv.reserved || inv.is_target) && !started && !inv.my_result && <Btn onClick={accept} testId="invite-accept-btn">Start my {kind ? { copilot: "Copilot", comet: "Comet", other: "Other agent" }[kind] : inv.agent_label} attempt</Btn>}
       <Notice kind="error" testId="invite-accept-error">{error}</Notice>
-      {started > 0 && <SelfReport key={started} courseId={inv.course_id} />}
+      {started > 0 && !inv.my_result && <SelfReport key={started} courseId={inv.course_id} onResult={load} />}
     </Page>
   );
 }

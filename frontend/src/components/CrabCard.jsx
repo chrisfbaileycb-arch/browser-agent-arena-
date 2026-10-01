@@ -1,3 +1,4 @@
+import { WeeklyBadges } from "./WeeklyBadge";
 import { useEffect, useRef, useState } from "react";
 import { RotateCw, Sparkles } from "lucide-react";
 import { api } from "../api";
@@ -34,6 +35,7 @@ function Front({ look, card, size, flipped, extra }) {
               <div key={k} className="cc-stat"><span>{label}</span><i><b style={{ width: `${card.stats[k]}%` }} /></i><em>{card.stats[k]}</em></div>
             ))}
             <div className="cc-stat cc-xp"><span>XP</span><i><b style={{ width: `${xpPct}%` }} /></i><em>{card.xp}</em></div>
+            {card.weekly_badges?.length > 0 && <div className="cc-weekly"><WeeklyBadges list={card.weekly_badges} testId={`cc-weekly-${card.id}`} /></div>}
             <div className="cc-foot"><span><b>{card.wins}</b>W · <b>{card.losses}</b>L</span>{card.badges.slice(0, 3).map(b => <span key={b} className="cc-badge">{b}</span>)}</div>
           </>
         ) : <p className="cc-empty">{look.champion ? "Computer-use champion · stats tracked per run" : "No runs yet"}</p>}

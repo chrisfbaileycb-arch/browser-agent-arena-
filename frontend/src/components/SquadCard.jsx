@@ -11,6 +11,7 @@ const FORMATIONS = {
 };
 
 import { courseOf } from "./courses";
+import SquadCoach from "./SquadCoach";
 
 function RelayControls({ squad, setSquad, crabs, champions, onRelay, save, courseId }) {
   const { stations: STATIONS, short } = courseOf(courseId);
@@ -95,6 +96,7 @@ export default function SquadCard({ crabs, champions = [], onEnter, onRelay, cou
         </div>
       </div>
       <RelayControls squad={squad} setSquad={setSquad} crabs={crabs} champions={champions} onRelay={onRelay} save={persist} courseId={courseId} />
+      {squad.slots && Object.values(squad.slots).some(Boolean) && <SquadCoach courseId={courseId} squad={squad} setSquad={setSquad} />}
     </section>
   );
 }

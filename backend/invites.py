@@ -18,6 +18,7 @@ from db import db
 from models import CourseAttempt
 from platform_api import leaderboard
 from security import rate_limit
+from weekly import ensure_awards, note_featured, week_index, winners_of
 
 router = APIRouter(prefix="/api")
 INVITE_TTL = timedelta(days=14)
@@ -30,6 +31,10 @@ class InviteCreate(BaseModel):
     course_id: str = Field(default="obstacle-1", max_length=60)
     agent_kind: str = Field(default="copilot", pattern=r"^(copilot|comet|other)$")
     max_uses: int = Field(default=MAX_USES, ge=1, le=MAX_USES)
+
+
+class AcceptBody(BaseModel):
+    agent_kind: Optional[str] = Field(default=None, pattern=r"^(copilot|comet|other)$")
 
 
 class FeaturedSet(BaseModel):
@@ -50,6 +55,8 @@ def invite_status(inv: dict) -> str:
 
 
 async def time_to_beat(inv: dict) -> Optional[dict]:
+    if inv.get("fixed_beat"):
+        return inv["fixed_beat"]
     base = {"user_id": inv["user_id"], "course_id": inv["course_id"], "verified": True}
     for q in ({**base, "agent_kind": inv["agent_kind"]}, base):
         doc = await db.course_attempts.find_one(q, sort=[("score.elapsed_s", 1)])
@@ -62,7 +69,26 @@ async def time_to_beat(inv: dict) -> Optional[dict]:
 async def public_invite(inv: dict) -> dict:
     return {"slug": inv["slug"], "inviter": inv["inviter_name"], "course_id": inv["course_id"], "course": COURSES[inv["course_id"]]["name"],
             "agent_kind": inv["agent_kind"], "agent_label": AGENT_NAMES.get(inv["agent_kind"], "Other agent"), "status": invite_status(inv),
-            "expires_at": inv["expires_at"], "uses_left": max(0, inv["max_uses"] - inv["uses"]), "time_to_beat": await time_to_beat(inv)}
+            "expires_at": inv["expires_at"], "uses_left": max(0, inv["max_uses"] - inv["uses"]), "time_to_beat": await time_to_beat(inv),
+            "rematch_n": inv.get("rematch_n", 0), "is_rematch": bool(inv.get("parent_id")), "beat_margin_s": inv.get("beat_margin_s")}
+
+
+async def result_for(inv: dict, uid: str) -> Optional[dict]:
+    best = await db.course_attempts.find_one({"invite_id": str(inv["_id"]), "user_id": uid, "verified": True}, sort=[("score.elapsed_s", 1)])
+    if not best:
+        return None
+    tt = await time_to_beat(inv)
+    child = await db.invites.find_one({"parent_id": str(inv["_id"]), "user_id": uid}, {"slug": 1, "rematch_n": 1})
+    elapsed = best["score"]["elapsed_s"]
+    return {"elapsed_s": elapsed, "score": best["score"]["total"], "beat": bool(tt and elapsed < tt["elapsed_s"]),
+            "margin_s": round(tt["elapsed_s"] - elapsed, 1) if tt else None, "rematch_slug": child["slug"] if child else None}
+
+
+async def check_invite_limits(uid: str) -> None:
+    rate_limit("invite", uid, 5)
+    since = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    if await db.invites.count_documents({"user_id": uid, "created_at": {"$gt": since}}) >= DAILY_INVITES:
+        raise HTTPException(429, f"You can create up to {DAILY_INVITES} challenge links per day.")
 
 
 async def find_invite(slug: str) -> dict:
@@ -75,12 +101,9 @@ async def find_invite(slug: str) -> dict:
 @router.post("/invites", status_code=201)
 async def create_invite(body: InviteCreate, user: dict = Depends(current_user)):
     uid = str(user["_id"])
-    rate_limit("invite", uid, 5)
     if body.course_id not in COURSES:
         raise HTTPException(404, "Course not found")
-    since = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
-    if await db.invites.count_documents({"user_id": uid, "created_at": {"$gt": since}}) >= DAILY_INVITES:
-        raise HTTPException(429, f"You can create up to {DAILY_INVITES} challenge links per day.")
+    await check_invite_limits(uid)
     now = datetime.now(timezone.utc)
     doc = {"slug": secrets.token_urlsafe(6), "user_id": uid, "inviter_name": display_name(user), "course_id": body.course_id,
            "agent_kind": body.agent_kind, "max_uses": body.max_uses, "uses": 0, "revoked": False,
@@ -91,15 +114,21 @@ async def create_invite(body: InviteCreate, user: dict = Depends(current_user)):
 
 @router.get("/invites")
 async def my_invites(user: dict = Depends(current_user)):
-    out = []
-    async for inv in db.invites.find({"user_id": str(user["_id"])}).sort("created_at", -1).limit(20):
+    out, uid = [], str(user["_id"])
+    async for inv in db.invites.find({"$or": [{"user_id": uid}, {"target_user_id": uid}]}).sort("created_at", -1).limit(30):
         attempts = [a async for a in db.course_attempts.find({"invite_id": str(inv["_id"])}).sort("created_at", 1)]
         names = {str(u["_id"]): display_name(u) async for u in db.users.find({"_id": {"$in": [ObjectId(a["user_id"]) for a in attempts]}}, {"name": 1})}
         friends = [{"name": names.get(a["user_id"], "A rival"), "accepted_at": a["created_at"], "started": bool(a.get("started_at")),
                     "finished": bool(a.get("code")), "verified": bool(a.get("verified")), "submitted_at": a.get("submitted_at"),
                     "elapsed_s": (a.get("score") or {}).get("elapsed_s") if a.get("verified") else None,
                     "score": (a.get("score") or {}).get("total") if a.get("verified") else None} for a in attempts]
+        children = {c["user_id"]: c async for c in db.invites.find({"parent_id": str(inv["_id"])}, {"slug": 1, "user_id": 1, "rematch_n": 1})}
+        for f, a in zip(friends, attempts):
+            c = children.get(a["user_id"])
+            f["rematch"] = {"slug": c["slug"], "n": c.get("rematch_n")} if c else None
+        parent = await db.invites.find_one({"_id": ObjectId(inv["parent_id"])}, {"slug": 1}) if inv.get("parent_id") else None
         out.append({"id": str(inv["_id"]), **await public_invite(inv), "uses": inv["uses"], "max_uses": inv["max_uses"], "created_at": inv["created_at"],
+                    "direction": "sent" if inv["user_id"] == uid else "received", "parent_slug": (parent or {}).get("slug"),
                     "counts": {"accepted": len(friends), "started": sum(f["started"] for f in friends), "finished": sum(f["verified"] for f in friends)},
                     "friends": friends})
     return out
@@ -116,13 +145,15 @@ async def revoke_invite(invite_id: str, user: dict = Depends(current_user)):
 
 
 @router.post("/invites/{slug}/accept", status_code=201)
-async def accept_invite(slug: str, user: dict = Depends(current_user)):
+async def accept_invite(slug: str, body: Optional[AcceptBody] = None, user: dict = Depends(current_user)):
     uid = str(user["_id"])
     rate_limit("attempt", uid, 10)
     inv = await find_invite(slug)
     status = invite_status(inv)
     if inv["user_id"] == uid:
         raise HTTPException(409, "This is your own challenge. Share the link with a friend.")
+    if inv.get("target_user_id") and inv["target_user_id"] != uid:
+        raise HTTPException(403, f"This rematch is reserved for the racer {inv['inviter_name']} challenged back.")
     iid = str(inv["_id"])
     open_doc = await db.course_attempts.find_one({"invite_id": iid, "user_id": uid, "submitted_at": None}, sort=[("created_at", -1)])
     if open_doc and not is_expired(CourseAttempt.from_mongo(open_doc)):
@@ -133,7 +164,7 @@ async def accept_invite(slug: str, user: dict = Depends(current_user)):
         res = await db.invites.update_one({"_id": inv["_id"], "revoked": False, "uses": {"$lt": inv["max_uses"]}}, {"$inc": {"uses": 1}})
         if not res.modified_count:
             raise HTTPException(409, "This challenge has reached its maximum number of players.")
-    kind = inv["agent_kind"]
+    kind = (body.agent_kind if body and body.agent_kind and inv.get("parent_id") else None) or inv["agent_kind"]
     return public_view(await create_attempt(db, inv["course_id"], AGENT_NAMES.get(kind) or "Other agent", user_id=uid, agent_kind=kind, invite_id=iid))
 
 
@@ -143,6 +174,42 @@ async def invite_landing(slug: str, request: Request, user: Optional[dict] = Dep
     inv = await find_invite(slug)
     out = await public_invite(inv)
     out["is_inviter"] = bool(user and str(user["_id"]) == inv["user_id"])
+    out["is_target"] = bool(user and str(user["_id"]) == inv.get("target_user_id"))
+    out["reserved"] = bool(inv.get("target_user_id"))
+    out["my_result"] = await result_for(inv, str(user["_id"])) if user else None
+    return out
+
+
+@router.post("/invites/{slug}/rematch", status_code=201)
+async def send_rematch(slug: str, user: dict = Depends(current_user)):
+    uid = str(user["_id"])
+    inv = await find_invite(slug)
+    res = await result_for(inv, uid)
+    if not res or not res["beat"]:
+        raise HTTPException(409, "A rematch unlocks only after your server-timed finish beats the time to beat.")
+    existing = await db.invites.find_one({"parent_id": str(inv["_id"]), "user_id": uid})
+    if existing:
+        return {"id": str(existing["_id"]), **await public_invite(existing)}
+    await check_invite_limits(uid)
+    now = datetime.now(timezone.utc)
+    best = await db.course_attempts.find_one({"invite_id": str(inv["_id"]), "user_id": uid, "verified": True}, sort=[("score.elapsed_s", 1)])
+    doc = {"slug": secrets.token_urlsafe(6), "user_id": uid, "inviter_name": display_name(user), "course_id": inv["course_id"],
+           "agent_kind": inv["agent_kind"], "max_uses": 1, "uses": 0, "revoked": False, "created_at": now.isoformat(),
+           "expires_at": (now + INVITE_TTL).isoformat(), "parent_id": str(inv["_id"]), "rematch_n": inv.get("rematch_n", 0) + 1,
+           "target_user_id": inv["user_id"], "beat_margin_s": res["margin_s"],
+           "fixed_beat": {"elapsed_s": res["elapsed_s"], "score": res["score"], "agent_label": best.get("agent_label"), "self_reported": True}}
+    result = await db.invites.insert_one(doc)
+    return {"id": str(result.inserted_id), **await public_invite(doc)}
+
+
+@router.get("/invites/inbox")
+async def rematch_inbox(user: dict = Depends(current_user)):
+    uid, out = str(user["_id"]), []
+    async for inv in db.invites.find({"target_user_id": uid, "revoked": False}).sort("created_at", -1).limit(10):
+        if invite_status(inv) != "active" or await db.course_attempts.find_one({"invite_id": str(inv["_id"]), "user_id": uid, "verified": True}):
+            continue
+        out.append({"slug": inv["slug"], "rematch_n": inv.get("rematch_n"), "course_id": inv["course_id"], "from": inv["inviter_name"],
+                    "margin_s": inv.get("beat_margin_s"), "message": f"{inv['inviter_name']} beat you by {inv.get('beat_margin_s')}s — rematch?"})
     return out
 
 
@@ -187,20 +254,22 @@ async def featured_course() -> tuple[str, str]:
     if override and override.get("course_id") in COURSES:
         return override["course_id"], "override"
     ids = sorted(COURSES)
-    return ids[((datetime.now(timezone.utc) - EPOCH_MONDAY) // timedelta(weeks=1)) % len(ids)], "rotation"
+    return ids[week_index() % len(ids)], "rotation"
 
 
 @router.get("/featured")
 async def featured(request: Request):
     await public_rate_limit(request, "featured", 90)
     course_id, source = await featured_course()
-    weeks = (datetime.now(timezone.utc) - EPOCH_MONDAY) // timedelta(weeks=1)
+    weeks = week_index()
+    await note_featured(weeks, course_id)
+    await ensure_awards()
     rows = await leaderboard(course_id)
     best = next((r for r in rows if r["badge"] == "verified" and r.get("run_id")), None)
     c = COURSES[course_id]
     return {"course_id": course_id, "name": c["name"], "theme": c["theme"], "stations": len(c["stations"]), "source": source,
             "next_rotation_at": (EPOCH_MONDAY + (weeks + 1) * timedelta(weeks=1)).isoformat(), "top": rows[:5],
-            "replay_run_id": best["run_id"] if best else None}
+            "replay_run_id": best["run_id"] if best else None, "last_week": await winners_of(weeks - 1)}
 
 
 @router.put("/admin/featured")
@@ -211,4 +280,5 @@ async def set_featured(body: FeaturedSet, user: dict = Depends(current_user)):
         raise HTTPException(404, "Course not found")
     await db.settings.update_one({"_id": "featured"}, {"$set": {"course_id": body.course_id}}, upsert=True)
     course_id, source = await featured_course()
+    await note_featured(week_index(), course_id, force=True)
     return {"course_id": course_id, "source": source}

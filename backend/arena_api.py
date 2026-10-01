@@ -22,6 +22,7 @@ from db import db
 from keys import PROVIDERS, KeyMissing, resolve_key
 from models import RunCreate
 from platform_api import level
+from weekly import badges_by_user
 from runner import DATA_DIR
 from security import client_ip
 
@@ -293,7 +294,8 @@ async def card_for(crab: dict) -> dict:
             "wins": len(wins), "losses": len(runs) - len(wins), "badges": badges, "subtitle": f"{crab.get('provider') or 'gemini'} · {crab.get('model') or ''}".strip(" ·"),
             "history": [{"at": r["created_at"], "status": r["status"], "score": (r.get("score") or {}).get("total"), "steps": r.get("steps_used", 0),
                          "elapsed": round(r["elapsed_s"]) if r.get("elapsed_s") else None} for r in runs[:6]],
-            "memory": (crab.get("memory") or [])[-3:]}
+            "memory": (crab.get("memory") or [])[-3:],
+            "weekly_badges": [] if champion else (await badges_by_user([crab.get("user_id")])).get(crab.get("user_id"), [])[:3]}
 
 
 @router.get("/cards")

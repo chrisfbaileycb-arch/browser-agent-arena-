@@ -110,7 +110,7 @@ export default function TournamentPanel({ crabs, champions, adapters, preset, on
   useEffect(() => { if (current?.status !== "running") return undefined; const t = setInterval(load, 4000); return () => clearInterval(t); }, [current?.status]);
   const pool = [{ key: "relay", label: "Squad Relay (my squad)", color: "#FFD23F", relay: true, body: { relay: true } },
     ...crabs.map(c => ({ key: c.id, label: c.name, color: c.color, body: { crab_id: c.id } })),
-    ...champions.map(c => ({ key: c.id, label: `${c.name} (champion)`, color: c.color, body: { crab_id: c.id } })),
+    ...champions.filter(c => !crabs.some(m => m.id === c.id)).map(c => ({ key: c.id, label: `${c.name} (champion)`, color: c.color, body: { crab_id: c.id } })),
     ...adapters.filter(a => a.tier === "champion" || a.id === "own_endpoint").map(a => ({ key: a.id, label: a.name, color: a.look?.color, body: { adapter: a.id } }))];
   const toggle = k => setPicked(p => p.includes(k) ? p.filter(x => x !== k) : [...p, k].slice(0, 8));
   const start = async () => {

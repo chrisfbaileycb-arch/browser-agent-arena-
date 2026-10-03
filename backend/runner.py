@@ -23,6 +23,50 @@ TIMEOUT_S = float(os.environ["RUN_TIMEOUT_S"])
 DATA_DIR = Path(os.environ["DATA_DIR"])
 PUBLIC_URL = os.environ["FRONTEND_URL"]
 SEM = asyncio.Semaphore(int(os.environ["MAX_CONCURRENT_RUNS"]))
+CDP_URL = os.environ["BROWSER_CDP_URL"].strip()
+NEEDS_CLOUD = ("This run needs a cloud browser connection: no local Chromium can start on this server. "
+               "Ask the Arena admin to set BROWSER_CDP_URL to a hosted browser (e.g. Browserless).")
+_probe = {"mode": None, "at": 0.0}
+_probe_lock = asyncio.Lock()
+
+
+class BrowserUnavailable(Exception):
+    pass
+
+
+async def _launch_local(pw):
+    return await pw.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+
+
+async def open_browser(pw):
+    """CDP endpoint if configured, else local Chromium if it launches, else a clear error."""
+    if CDP_URL:
+        try:
+            return await pw.chromium.connect_over_cdp(CDP_URL, timeout=20000)
+        except Exception as exc:  # noqa: BLE001
+            raise BrowserUnavailable(f"Could not reach the cloud browser at BROWSER_CDP_URL: {str(exc).splitlines()[0][:160]}")
+    try:
+        return await _launch_local(pw)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("local chromium failed to launch: %s", str(exc).splitlines()[0][:200])
+        _probe.update(mode="unavailable", at=time.monotonic())
+        raise BrowserUnavailable(NEEDS_CLOUD)
+
+
+async def browser_mode(max_age_s: float = 300) -> str:
+    if CDP_URL:
+        return "cdp"
+    async with _probe_lock:
+        if _probe["mode"] and time.monotonic() - _probe["at"] < max_age_s:
+            return _probe["mode"]
+        try:
+            async with async_playwright() as pw:
+                await (await _launch_local(pw)).close()
+            mode = "local"
+        except Exception:  # noqa: BLE001
+            mode = "unavailable"
+        _probe.update(mode=mode, at=time.monotonic())
+        return mode
 
 
 def now_iso() -> str:
@@ -41,7 +85,7 @@ async def browse(db, run: Run, user: dict, oid: ObjectId, folder: Path, started:
     adapter = ADAPTERS[run.adapter]
     remaining = lambda: run.timeout_s - (time.monotonic() - started)  # noqa: E731
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=True, args=["--no-sandbox", "--disable-dev-shm-usage"])
+        browser = await open_browser(pw)
         try:
             context = await browser.new_context(viewport={"width": 1280, "height": 800})
             if run.kind == "url":
@@ -134,6 +178,8 @@ async def execute_run(db, run_id: str) -> None:
         await db.runs.update_one({"_id": oid}, {"$set": {"status": "running", "started_at": now_iso()}})
         try:
             out = await browse(db, run, user, oid, folder, started)
+        except BrowserUnavailable as exc:
+            out = {"end_reason": "browser_unavailable", "agent_result": None, "final_screenshot": None, "error": str(exc)}
         except KeyMissing as exc:
             out = {"end_reason": "missing_key", "agent_result": None, "final_screenshot": None, "error": str(exc)}
         except Exception as exc:  # noqa: BLE001

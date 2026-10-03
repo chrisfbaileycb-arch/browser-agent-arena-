@@ -1,5 +1,6 @@
 import os
 import re
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -11,6 +12,7 @@ from bson.errors import InvalidId
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
+from access import admit
 from db import db
 from security import client_ip, rate_limit
 
@@ -27,10 +29,12 @@ class Credentials(BaseModel):
 
 class Register(Credentials):
     name: str = Field(min_length=1, max_length=80)
+    access_code: Optional[str] = Field(default=None, max_length=40)
 
 
 class GoogleSession(BaseModel):
     session_id: str = Field(min_length=4, max_length=500)
+    access_code: Optional[str] = Field(default=None, max_length=40)
 
 
 def hash_password(pw: str) -> str:
@@ -112,8 +116,9 @@ async def register(body: Register, request: Request, response: Response):
         raise HTTPException(422, "Enter a valid email address.")
     if await db.users.find_one({"email": email}):
         raise HTTPException(409, "An account with this email already exists.")
+    via = await admit(email, body.access_code)
     doc = {"email": email, "name": body.name.strip(), "password_hash": hash_password(body.password), "role": "user", "plan": "free",
-           "created_at": datetime.now(timezone.utc).isoformat()}
+           "joined_via": via, "created_at": datetime.now(timezone.utc).isoformat()}
     doc["_id"] = (await db.users.insert_one(doc)).inserted_id
     return set_session(response, doc)
 
@@ -149,8 +154,13 @@ async def google_session(body: GoogleSession, request: Request, response: Respon
     email = str(data.get("email", "")).lower()
     if not EMAIL_RE.match(email):
         raise HTTPException(401, "Google sign-in returned no email.")
-    await db.users.update_one({"email": email}, {"$set": {"name": data.get("name") or email, "picture": data.get("picture")},
-                                                "$setOnInsert": {"role": "user", "plan": "free", "created_at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+    profile = {"name": data.get("name") or email, "picture": data.get("picture")}
+    if await db.users.find_one({"email": email}, {"_id": 1}):
+        await db.users.update_one({"email": email}, {"$set": profile})
+    else:
+        via = await admit(email, body.access_code)
+        await db.users.insert_one({"email": email, **profile, "role": "user", "plan": "free", "joined_via": via,
+                                   "created_at": datetime.now(timezone.utc).isoformat()})
     user = await db.users.find_one({"email": email})
     return set_session(response, user)
 
@@ -184,15 +194,18 @@ async def me(user: dict = Depends(current_user)):
     return public_user(user)
 
 
-async def seed_users() -> None:
+async def bootstrap_admin() -> None:
     await db.users.create_index("email", unique=True)
     await db.login_attempts.create_index("identifier")
-    for email, pw, name, role, plan in [(os.environ["ADMIN_EMAIL"], os.environ["ADMIN_PASSWORD"], "Arena Admin", "admin", "pro"),
-                                        (os.environ["TEST_FREE_EMAIL"], os.environ["TEST_FREE_PASSWORD"], "Free Tester", "user", "free"),
-                                        (os.environ["TEST_PRO_EMAIL"], os.environ["TEST_PRO_PASSWORD"], "Pro Tester", "user", "pro")]:
-        existing = await db.users.find_one({"email": email})
-        fields = {"name": name, "role": role, "plan": plan, "dev_platform_key": True}
-        if not existing:
-            await db.users.insert_one({"email": email, "password_hash": hash_password(pw), "created_at": datetime.now(timezone.utc).isoformat(), **fields})
-        elif not verify_password(pw, existing.get("password_hash", "")):
-            await db.users.update_one({"_id": existing["_id"]}, {"$set": {"password_hash": hash_password(pw)}})
+    email, pw = os.environ["BOOTSTRAP_ADMIN_EMAIL"].strip().lower(), os.environ["BOOTSTRAP_ADMIN_PASSWORD"]
+    if not email:
+        return
+    existing = await db.users.find_one({"email": email})
+    fields = {"role": "admin", "plan": "pro", "dev_platform_key": False}
+    if not existing:
+        await db.users.insert_one({"email": email, "name": "Arena Admin", "password_hash": hash_password(pw), "joined_via": "bootstrap",
+                                   "created_at": datetime.now(timezone.utc).isoformat(), **fields})
+    else:
+        if not verify_password(pw, existing.get("password_hash") or hash_password(secrets.token_hex(8))):
+            fields["password_hash"] = hash_password(pw)
+        await db.users.update_one({"_id": existing["_id"]}, {"$set": fields})

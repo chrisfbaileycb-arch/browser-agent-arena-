@@ -9,6 +9,10 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent / ".env")
 
+from config import validate_env  # noqa: E402
+
+validate_env()
+
 from bson import ObjectId  # noqa: E402
 from bson.errors import InvalidId  # noqa: E402
 from fastapi import APIRouter, Depends, FastAPI, HTTPException  # noqa: E402
@@ -25,7 +29,8 @@ from relay_legs import router as relay_legs_router  # noqa: E402
 from weekly import router as weekly_router  # noqa: E402
 from coach import router as coach_router  # noqa: E402
 from hall import router as hall_router  # noqa: E402
-from auth import current_user, is_pro, optional_user, router as auth_router, seed_users  # noqa: E402
+from access import registration_mode, router as access_router, seed_access  # noqa: E402
+from auth import bootstrap_admin, current_user, is_pro, optional_user, router as auth_router  # noqa: E402
 from billing import router as billing_router  # noqa: E402
 from course_api import router as course_router  # noqa: E402
 from course_store import course_exists, create_attempt  # noqa: E402
@@ -37,7 +42,7 @@ from keys import PROVIDERS, KeyMissing, resolve_key, router as keys_router  # no
 from models import Run, RunCreate, SafetyRequest  # noqa: E402
 from platform_api import router as platform_router  # noqa: E402
 from quota import consume_execution  # noqa: E402
-from runner import DATA_DIR, MAX_STEPS, TIMEOUT_S, execute_run  # noqa: E402
+from runner import DATA_DIR, MAX_STEPS, NEEDS_CLOUD, TIMEOUT_S, browser_mode, execute_run  # noqa: E402
 from safety import check_url  # noqa: E402
 from security import rate_limit  # noqa: E402
 from workflow import router as workflow_router  # noqa: E402
@@ -64,6 +69,12 @@ def can_view(doc: dict, user: Optional[dict]) -> bool:
 @api.get("/")
 async def root():
     return {"service": "steps-of-execution", "product": "Browser Agent Arena"}
+
+
+@api.get("/health")
+async def health():
+    await db.command("ping")
+    return {"ok": True, "db": "ok", "browser_mode": await browser_mode(), "registration_mode": registration_mode()}
 
 
 @api.get("/adapters")
@@ -129,6 +140,8 @@ async def start_run(user: dict, body: RunCreate, public: bool = False, champion_
         if not run.safety["allowed"]:
             raise HTTPException(403, {"error": "url_blocked", **run.safety})
         run.goal, run.target_url, run.display_url = body.goal.strip(), run.safety["url"], run.safety["url"]
+    if await browser_mode() == "unavailable":
+        raise HTTPException(503, NEEDS_CLOUD)
     if not public:
         await consume_execution(user, "browser_run")
     run_id = str((await db.runs.insert_one(run.to_mongo())).inserted_id)
@@ -154,7 +167,7 @@ async def champion_runs(course_id: str = "obstacle-1", user: dict = Depends(curr
     if user.get("role") != "admin":
         raise HTTPException(403, "Admins only")
     ids = []
-    async for crab in db.crabs.find({"is_champion": True, "user_id": str(user["_id"])}):
+    async for crab in db.crabs.find({"is_champion": True}):
         ids.append(await start_run(user, RunCreate(course_id=course_id, crab_id=str(crab["_id"])), public=True, champion_label=crab["name"]))
     return {"runs": ids}
 
@@ -210,7 +223,7 @@ async def get_screenshot(run_id: str, name: str, user: Optional[dict] = Depends(
     return FileResponse(path, media_type="image/jpeg")
 
 
-for r in (api, arena_router, public_router, auth_router, keys_router, endpoints_router, billing_router, course_router, platform_router, workflow_router, h2h_router, invites_router, relay_legs_router, weekly_router, coach_router, hall_router):
+for r in (api, access_router, arena_router, public_router, auth_router, keys_router, endpoints_router, billing_router, course_router, platform_router, workflow_router, h2h_router, invites_router, relay_legs_router, weekly_router, coach_router, hall_router):
     app.include_router(r)
 @app.middleware("http")
 async def json_errors(request, call_next):
@@ -234,7 +247,8 @@ CHAMPIONS = [("Gemini Scuttler", "gemini", "gemini-3-flash-preview", "#12B5A5", 
 
 @app.on_event("startup")
 async def startup():
-    await seed_users()
+    await bootstrap_admin()
+    await seed_access()
     await db.rate_hits.create_index("at", expireAfterSeconds=120)
     await db.user_keys.create_index([("user_id", 1), ("provider", 1)], unique=True)
     await db.course_attempts.create_index([("course_id", 1), ("verified", 1)])
@@ -249,15 +263,15 @@ async def startup():
     await db.weekly_badges.create_index([("user_id", 1), ("course_id", 1)])
     await db.weekly_badges.create_index("week")
     await db.coach_history.create_index([("user_id", 1), ("course_id", 1), ("at", -1)])
-    admin = await db.users.find_one({"email": os.environ["ADMIN_EMAIL"]})
     for name, provider, model, color, accent, accessory, personality in CHAMPIONS:
         await db.crabs.update_one({"name": name, "is_champion": True}, {"$setOnInsert": {
-            "user_id": str(admin["_id"]), "provider": provider, "model": model, "color": color, "accent": accent, "accessory": accessory,
+            "user_id": "system", "provider": provider, "model": model, "color": color, "accent": accent, "accessory": accessory,
             "personality": personality, "skills": ["scroll scouting", "decoy detection", "form filling"], "system_prompt": "", "xp": 0,
             "runs": 0, "wins": 0, "memory": [], "created_at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
     await db.runs.update_many({"status": {"$in": ["queued", "running"]}},
                               {"$set": {"status": "failed", "end_reason": "interrupted", "error": "Server restarted during run"}})
     await db.tournaments.update_many({"status": "running"}, {"$set": {"status": "failed", "error": "Server restarted during the tournament"}})
+    logging.getLogger("server").warning("startup: browser_mode=%s registration_mode=%s", await browser_mode(), registration_mode())
 
 
 @app.on_event("shutdown")

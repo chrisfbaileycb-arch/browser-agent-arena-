@@ -483,3 +483,14 @@ a.weekly-badge { text-decoration: none; }
 @media (max-width: 760px) { .hall-stats { grid-template-columns: 1fr; } .hall-entry { grid-template-columns: 1fr; } }
 .key-msg { flex-basis: 100%; margin: 6px 0 0; padding: 8px 12px; border-radius: 10px; font-size: 13px; font-family: monospace; word-break: break-word; }
 .key-msg.ok { background: #E6FBF3; color: #0B6B5F; } .key-msg.bad { background: #FFE8E5; color: #A3261B; }
+.beta-lock { display: flex; gap: 10px; align-items: flex-start; text-align: left; margin: 6px 0 4px; padding: 12px 14px; border-radius: 16px; background: #1B1530; color: #FFF8EF; font-size: 13.5px; border: 2px dashed var(--sun); animation: lockIn .4s ease-out; }
+.beta-lock svg { flex: none; color: var(--sun); margin-top: 2px; }
+@keyframes lockIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.admin-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0 12px; align-items: end; margin-bottom: 14px; }
+.admin-form .btn { margin: 10px 0; }
+.admin-form .notice { grid-column: 1 / -1; }
+.access-table { display: grid; gap: 8px; }
+.access-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 14px; border: 2px solid var(--line); border-radius: 14px; background: #fff; transition: border-color .15s, transform .15s; }
+.access-row:hover { border-color: var(--sky); transform: translateX(2px); }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+

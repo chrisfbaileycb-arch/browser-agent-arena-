@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { NavLink, useNavigate } from "react-router-dom";
-import { KeyRound, LogOut, Menu, X } from "lucide-react";
+import { KeyRound, LogOut, Menu, ShieldCheck, X } from "lucide-react";
 import Crab, { WEBGL } from "./Crab";
 
 const SharedCanvas = lazy(() => import("./SharedCanvas"));
@@ -34,6 +34,7 @@ export default function Layout({ children }) {
             <>
               <NavLink to="/keys" className="tab" data-testid="nav-my-keys"><KeyRound size={15} /> My Keys</NavLink>
               <NavLink to="/profile" className="tab" data-testid="nav-profile">Profile</NavLink>
+              {user.role === "admin" && <NavLink to="/admin" className="tab" data-testid="nav-admin"><ShieldCheck size={15} /> Admin</NavLink>}
               <span className={`plan plan-${user.plan}`} data-testid="user-plan-badge">{user.plan}</span>
               <button className="icon-btn" onClick={() => { logout(); navigate("/"); }} aria-label="Log out" data-testid="logout-btn"><LogOut size={17} /></button>
             </>

@@ -5,7 +5,7 @@ from collections import defaultdict, deque
 from cryptography.fernet import Fernet
 from fastapi import HTTPException, Request
 
-_fernet = Fernet(os.environ["KEYS_SECRET"].encode())
+_fernet = Fernet(os.environ["FERNET_KEY"].encode())
 _hits: dict[str, deque] = defaultdict(deque)
 
 

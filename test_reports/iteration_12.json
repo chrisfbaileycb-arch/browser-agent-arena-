@@ -1,0 +1,27 @@
+{
+  "summary": "Pre-publish security + runtime pass verified end-to-end. Backend: 16/16 pytest tests passed in /app/backend/tests/test_access_gating.py covering GET /api/health (ok, db:ok, browser_mode:local, registration_mode:invite_only), GET /api/access/mode, invite_only gating on POST /api/auth/register (no code -> 403 invite_required, wrong code -> 403, seeded BETA-9EBFA2 -> 200 with increment), admin bootstrap login (role admin, plan pro), GET /api/admin/access list (seeded code visible), POST /api/admin/access/codes (random, custom with max_uses+future expiry, past expiry -> 422, duplicate -> 409), DELETE revokes code (status revoked + registration blocked), max_uses=1 enforces single use (2nd register -> 403 used_up), POST /api/admin/access/emails case-insensitive allow-list enabling password-less register and DELETE blocking it, unauthenticated -> 401 and non-admin -> 403 on /api/admin/access*, existing user login still works. Frontend: /login shows beta-lock (data-testid=beta-lock), register toggles exposes register-access-code-input, login-error shows backend reason for missing/invalid code, successful register with BETA-9EBFA2 navigates to /arena. Non-admin: nav-admin hidden and /admin redirects to /. Admin: nav-admin visible, /admin page shows admin-health with admin-browser-mode (browser: local) and admin-registration-mode (registration: invite_only), full code-form and email-form with all required test-ids, codes-table-row-BETA-9EBFA2 renders with active status and uses count, UI-created code appears in table and revoke flips status to 'revoked', allow-email + revoke work end-to-end. Smoke: Home, Arena, Leaderboard, Hall of Champions all render; champion crabs (Squad Relay, Claude/OpenAI/Gemini Computer Use, Your Agent Endpoint) still listed in Arena. Cleanup executed: deleted all qa_* and ui_allow_* users (13), all admin-created access_codes except BETA-9EBFA2 (14) and reset its uses to 0, all access_emails (5), all login_attempts.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_access_gating.py",
+    "/app/test_reports/pytest/access_gating.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "access.py admit(): error reason string differs between 'wrong code supplied' and 'no code supplied'; frontend currently surfaces the raw reason inside detail. Consider also returning HTTP 403 with a stable machine code (already 'invite_required') and keeping reason as the human string — current impl already does this, so just document it.",
+    "auth.py register(): rate-limit at 5/min per IP combined with register being used in automated/suite testing causes 429s during multi-registration flows; consider raising to 10/min or exposing a Retry-After header (currently returns 'Try again in Ns' in detail only).",
+    "access.py seed_access(): seeds env ACCESS_CODES/ALLOWED_EMAILS with $setOnInsert only — good (never overwrites admin edits), but there is no mechanism to prune a seed value that was later removed from env. Minor and intentional per spec.",
+    "Admin.jsx HealthStrip calls /api/health on every mount with no polling or stale indicator; fine for now but could show 'stale' after N minutes.",
+    "auth.py google_session(): when the account already exists it skips admit() entirely — correct per spec ('first-time Google' only), but worth a one-line comment to lock in the intent for future readers."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_access_gating.py"
+  ],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100%"},
+  "test_credentials": "Not written to any file per user requirement. Admin creds and seeded code were supplied inline in the review request only.",
+  "seed_data_creation": "None persisted. All test users, admin-created codes, allow-listed emails, login_attempts cleaned up. BETA-9EBFA2 uses counter reset to 0; revoked:false restored.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Register endpoint is rate-limited to 5/min per IP; pace register-heavy test suites or expect 429s. Admin endpoint auth: backend _extract prefers cookie over Authorization header, so when a test session has a non-admin cookie, Authorization: Bearer <admin> will be ignored (403 Admins only). In pytest, use a fresh requests.Session per test and plain `requests.*` with Authorization header for admin calls to avoid cookie bleed. BETA-9EBFA2 is unlimited uses and currently has uses=0.",
+  "rca of the issue": "N/A — all specified features verified green on first clean run after test-script fixes (session isolation + register rate-limit pacing)."
+}

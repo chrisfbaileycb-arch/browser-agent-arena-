@@ -23,8 +23,9 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={{ user, setUser, refresh, logout }}>{children}</AuthContext.Provider>;
 }
 
-export function googleLogin(returnTo) {
+export function googleLogin(returnTo, accessCode) {
   if (typeof returnTo === "string") localStorage.setItem("after_login", returnTo); else localStorage.removeItem("after_login");
+  if (accessCode) localStorage.setItem("access_code", accessCode); else localStorage.removeItem("access_code");
   // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
   const redirectUrl = window.location.origin + "/arena";
   window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
@@ -39,7 +40,9 @@ export function AuthCallback() {
     done.current = true;
     const sessionId = oauthSessionId();
     window.history.replaceState(null, "", window.location.pathname);
-    post("/auth/google/session", { session_id: sessionId })
+    const accessCode = localStorage.getItem("access_code") || undefined;
+    localStorage.removeItem("access_code");
+    post("/auth/google/session", { session_id: sessionId, access_code: accessCode })
       .then(async u => { setUser(u); const me = await refresh(); if (!me) throw new Error("Your browser blocked the session. Please try again.");
         const back = localStorage.getItem("after_login"); localStorage.removeItem("after_login");
         navigate(back && back.startsWith("/") ? back : "/arena", { replace: true }); })

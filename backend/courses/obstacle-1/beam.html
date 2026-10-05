@@ -1,20 +1,36 @@
 <style>
-  #beam { position: relative; height: 260px; border-radius: 4px; overflow: hidden;
-    background: linear-gradient(transparent 118px, #8a5a2c 118px, #8a5a2c 142px, transparent 142px), #6f4a2a repeating-linear-gradient(90deg, rgba(0,0,0,.12) 0 4px, transparent 4px 30px); }
-  #beam::after { content: "MUD"; position: absolute; right: 12px; bottom: 8px; font-family: monospace; color: rgba(255,255,255,.4); }
-  .plank { position: absolute; width: 130px; height: 44px; background: #e9c98f; border: 3px solid #4f3216; border-radius: 3px; font-size: 15px; transition: left .3s ease; }
-  .plank.stepped { background: #cfe8c2; }
+  #beam { position: relative; height: 330px; border-radius: 18px; overflow: hidden; border: 2px solid var(--ink);
+    background:
+      radial-gradient(140px 60px at 20% 100%, rgba(255, 255, 255, .12), transparent 70%),
+      linear-gradient(180deg, #6b4a2c 0 26%, #57371e 26% 100%); box-shadow: inset 0 18px 34px -22px rgba(0, 0, 0, .6); }
+  #beam::before { content: ""; position: absolute; left: 0; right: 0; top: 92px; height: 26px;
+    background: linear-gradient(180deg, #a97c4c, #8a5a2c); border-top: 2px solid rgba(255, 255, 255, .18);
+    border-bottom: 2px solid rgba(18, 48, 55, .5); box-shadow: 0 16px 26px -14px rgba(0, 0, 0, .55); }
+  #beam::after { content: "MUD PIT"; position: absolute; right: 16px; bottom: 12px; font-family: var(--mono);
+    font-size: 11px; letter-spacing: .28em; color: rgba(255, 255, 255, .34); }
+  .plank { position: absolute; width: 142px; height: 48px; border: 2px solid var(--ink); border-radius: 12px;
+    background: linear-gradient(180deg, #f0d6a2, #dfb877); color: var(--ink); font-size: 15px; font-weight: 700;
+    box-shadow: 0 5px 0 rgba(18, 48, 55, .5), 0 16px 22px -14px rgba(0, 0, 0, .5);
+    transition: left .35s ease, top .35s ease, background-color .2s ease, transform .12s ease; }
+  .plank:hover { transform: translateY(-2px); }
+  .plank:active { transform: translateY(2px); }
+  .plank.stepped { background: linear-gradient(180deg, #bfe6c8, #93c9a2); box-shadow: 0 2px 0 rgba(18, 48, 55, .5); }
+  .beam-status { display: inline-flex; align-items: center; gap: 10px; margin: 16px 0 0; padding: 11px 18px;
+    border-radius: 999px; border: 2px solid var(--ink); background: #fff; font-family: var(--mono);
+    font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+  .beam-status::before { content: "→"; color: var(--coral); font-size: 15px; }
 </style>
 <section class="board">
   <div class="station-tag">Station 5 · Balance Beam</div>
   <h1>The Balance Beam</h1>
-  <p>Planks sway across the mud pit. Step on the planks in order: Plank 1, then Plank 2, then Plank 3. Stepping on a plank out of order drops you in the mud. The planks sway for a moment, then hold still. Step while they are still.</p>
+  <p class="lede">Planks sway across the mud pit. Step on the planks in order: Plank 1, then Plank 2, then Plank 3.
+    Stepping on a plank out of order drops you in the mud. The planks sway for a moment, then hold still. Step while they are still.</p>
   <div id="beam" aria-label="Balance beam">
     <button class="plank" type="button" data-n="2">Plank 2</button>
     <button class="plank" type="button" data-n="3">Plank 3</button>
     <button class="plank" type="button" data-n="1">Plank 1</button>
   </div>
-  <p id="beam-status">Next plank: 1</p>
+  <p id="beam-status" class="beam-status">Next plank: 1</p>
 </section>
 <script>
 (function () {
@@ -23,7 +39,7 @@
     planks.forEach(function (p, i) {
       if (p.classList.contains("stepped")) return;
       p.style.left = (10 + Math.floor(Math.random() * Math.max(1, beam.clientWidth - 160))) + "px";
-      p.style.top = (14 + i * 82) + "px";
+      p.style.top = (142 + i * 60) + "px";
     });
   };
   place();

@@ -1,7 +1,16 @@
 <style>
-  .shoal { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
-  .mirror { display: grid; gap: 4px; padding: 14px; border-radius: 14px; border: 2px solid #7cf5e4; background: #0f5560; color: #e9fbf6; text-align: center; }
-  .mirror small { font-family: monospace; font-size: 12px; opacity: .85; }
+  .shoal { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 14px; }
+  .mirror { display: grid; gap: 5px; padding: 18px 14px; border-radius: 16px; border: 2px solid var(--line);
+    background: linear-gradient(165deg, rgba(14, 92, 110, .6), rgba(10, 50, 66, .9)); color: var(--ink);
+    text-align: center; transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease; }
+  .mirror:hover { transform: translateY(-3px); border-color: rgba(88, 224, 200, .55);
+    box-shadow: 0 14px 26px -16px rgba(88, 224, 200, .5); }
+  .mirror:active { transform: translateY(1px); }
+  .mirror b { font-size: 15.5px; letter-spacing: .02em; }
+  .mirror small { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+    opacity: .85; color: var(--glow); }
+  .shoal-note { margin: 16px 0 0; font-family: var(--mono); font-size: 11px; letter-spacing: .22em;
+    text-transform: uppercase; color: var(--ink-soft); }
 </style>
 <section class="board" id="stage">
   <div class="station-tag">Station 7 · Mirror Shoal</div>
@@ -10,7 +19,7 @@
 <script>
 (function () {
   var P = Course.P, I = P.ids, E = Course.el, stage = Course.stage();
-  stage.appendChild(E("p", { text: "Six buttons, one real exit. The labels are all near-copies, so ignore them: only the button with the tag " + P.serial + " is real." }));
+  stage.appendChild(E("p", { class: "lede", text: "Six buttons, one real exit. The labels are all near-copies, so ignore them: only the button with the tag " + P.serial + " is real." }));
   stage.appendChild(E("div", { class: "shoal " + I.a, id: I.b }, P.buttons.map(function (b) {
     return E("button", { type: "button", id: b.id, class: "mirror " + I.c, on: function () { Course.clear(b.serial); } }, [E("b", { text: b.label }), E("small", { text: "tag " + b.serial })]);
   })));

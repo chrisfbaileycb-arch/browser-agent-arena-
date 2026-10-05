@@ -1,22 +1,42 @@
 <style>
-  .knot { border-left: 6px solid #c8a165; padding-left: 14px; }
-  .knot label { display: block; margin-bottom: 8px; }
-  .knot input, .knot select { font-size: 16px; padding: 8px 10px; border: 2px solid #1f1a12; border-radius: 4px; min-width: 260px; }
-  .knot button { margin-left: 8px; background: #1f1a12; color: #fff; border: 0; padding: 10px 18px; font-size: 15px; border-radius: 4px; }
-  .err { color: #b3261e; font-family: monospace; min-height: 18px; }
+  .knot { position: relative; border-left: 4px solid var(--sun); padding: 4px 0 4px 20px; margin: 0 0 18px; }
+  .knot[hidden] { display: none; }
+  .knot label { display: block; margin-bottom: 10px; font-weight: 700; font-size: 15.5px; }
+  .knot label .step-no::before { content: attr(data-n); }
+  .knot label .step-no { display: inline-grid; place-items: center; width: 24px; height: 24px; margin-right: 8px;
+    border-radius: 50%; background: var(--sea); color: var(--sun-soft); font-family: var(--mono); font-size: 12px; }
+  .knot input, .knot select { font-size: 16px; padding: 12px 14px; border: 2px solid var(--ink); border-radius: 13px;
+    min-width: 280px; background: #fff; box-shadow: 0 3px 0 rgba(18, 48, 55, .18); }
+  .knot input:focus, .knot select:focus { outline: none; border-color: var(--lagoon); box-shadow: 0 0 0 4px rgba(23, 120, 140, .2); }
+  .knot button { margin-left: 10px; background: var(--ink); color: var(--sun-soft); border: 2px solid var(--ink);
+    padding: 12px 20px; font-size: 15px; font-weight: 700; border-radius: 13px; box-shadow: 0 4px 0 rgba(18, 48, 55, .35);
+    transition: transform .12s ease, box-shadow .12s ease; }
+  .knot button:hover { transform: translateY(-2px); box-shadow: 0 6px 0 rgba(18, 48, 55, .35); }
+  .knot button:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(18, 48, 55, .35); }
+  .err { color: var(--coral-deep); font-family: var(--mono); font-size: 13px; min-height: 20px; letter-spacing: .04em; }
+  .rope-art { float: right; width: 118px; height: 210px; margin: 4px 0 12px 18px; border-radius: 60px 60px 14px 14px;
+    background: linear-gradient(180deg, rgba(242, 160, 61, .25), rgba(47, 125, 95, .16)), var(--paper);
+    border: 2px solid var(--line); position: relative; overflow: hidden; }
+  .rope-art::before { content: ""; position: absolute; left: 50%; top: 14px; bottom: 14px; width: 10px;
+    transform: translateX(-50%); border-radius: 6px;
+    background: repeating-linear-gradient(45deg, #b98a52 0 6px, #8a5a2c 6px 12px); }
+  .rope-art i { position: absolute; left: 50%; width: 30px; height: 12px; transform: translateX(-50%);
+    border-radius: 6px; background: var(--sun); border: 2px solid rgba(18, 48, 55, .5); }
+  .rope-art i:nth-child(1) { top: 48px; } .rope-art i:nth-child(2) { top: 102px; } .rope-art i:nth-child(3) { top: 156px; }
 </style>
 <section class="board">
   <div class="station-tag">Station 4 · Rope Climb</div>
   <h1>The Rope Climb</h1>
-  <p>Climb the rope one knot at a time. Each knot is a step of this form.</p>
+  <div class="rope-art" aria-hidden="true"><i></i><i></i><i></i></div>
+  <p class="lede">Climb the rope one knot at a time. Each knot is a step of this form.</p>
   <form id="rope" onsubmit="return false">
     <div class="knot" id="knot-1">
-      <label for="climber">Knot 1 of 3 — Climber name (at least 3 letters)</label>
+      <label for="climber"><span class="step-no" data-n="1" aria-hidden="true"></span>Knot 1 of 3 — Climber name (at least 3 letters)</label>
       <input id="climber" name="climber" type="text" placeholder="e.g. Pinchy" autocomplete="off">
       <button type="button" id="knot-1-next">Next knot</button>
     </div>
     <div class="knot" id="knot-2" hidden>
-      <label for="grip">Knot 2 of 3 — Choose the knot that holds. Hint: sailors trust the knot named after a ship's bow.</label>
+      <label for="grip"><span class="step-no" data-n="2" aria-hidden="true"></span>Knot 2 of 3 — Choose the knot that holds. Hint: sailors trust the knot named after a ship's bow.</label>
       <select id="grip" name="grip">
         <option value="">— choose a knot —</option>
         <option>Granny knot</option><option>Slip knot</option><option>Bowline</option><option>Clove hitch</option>
@@ -24,7 +44,7 @@
       <button type="button" id="knot-2-next">Next knot</button>
     </div>
     <div class="knot" id="knot-3" hidden>
-      <label for="length">Knot 3 of 3 — Rope check: type the sum of <b id="num-a"></b> + <b id="num-b"></b></label>
+      <label for="length"><span class="step-no" data-n="3" aria-hidden="true"></span>Knot 3 of 3 — Rope check: type the sum of <b id="num-a"></b> + <b id="num-b"></b></label>
       <input id="length" name="length" type="text" inputmode="numeric" autocomplete="off">
       <button type="button" id="knot-3-next">Reach the top</button>
     </div>

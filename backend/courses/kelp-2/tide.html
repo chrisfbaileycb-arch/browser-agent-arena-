@@ -1,11 +1,19 @@
 <style>
-  .gate { margin: 14px 0; padding: 18px; border-radius: 14px; font-family: monospace; font-size: 20px; text-align: center; transition: background-color .3s; }
-  .gate.open { background: #2e8b57; color: #fff; } .gate.shut { background: #4a1d1d; color: #ffb4a8; }
+  .gate { margin: 16px 0; padding: 22px 18px; border-radius: 16px; font-family: var(--mono); font-size: 19px;
+    letter-spacing: .12em; text-align: center; border: 2px solid var(--line);
+    transition: background-color .3s ease, border-color .3s ease, color .3s ease, box-shadow .3s ease; }
+  .gate.open { background: rgba(47, 174, 127, .28); border-color: var(--kelp); color: #d8ffe9;
+    box-shadow: 0 0 34px rgba(47, 174, 127, .35); }
+  .gate.shut { background: rgba(217, 83, 47, .16); border-color: rgba(255, 122, 89, .5); color: #ffc8b6; }
+  .gate::before { content: "◈"; display: block; font-size: 16px; margin-bottom: 8px; opacity: .8; }
+  .tide-hint { margin: 14px 0 0; font-family: var(--mono); font-size: 11px; letter-spacing: .22em;
+    text-transform: uppercase; color: var(--ink-soft); }
 </style>
 <section class="board" id="stage">
   <div class="station-tag">Station 5 · Tide Gate</div>
   <h1>The Tide Gate</h1>
-  <p>The gate only opens when the tide rolls in, for a few seconds at a time. Wait for it to open, then swim through. Forcing it never works.</p>
+  <p class="lede">The gate only opens when the tide rolls in, for a few seconds at a time. Wait for it to open,
+    then swim through. Forcing it never works.</p>
 </section>
 <script>
 (function () {

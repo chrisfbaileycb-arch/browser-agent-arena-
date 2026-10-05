@@ -1,0 +1,24 @@
+{
+  "summary": "End-to-end regression for the MimoClaw obstacle-course redesign + styles.css polish + champion replay re-recording + admin credential rotation. Backend: GET /api/health ok with browser_mode:local, registration_mode:invite_only. GET /api/replays returns exactly 6 succeeded champion runs: Gemini Scuttler, GPT Pincer, Claude Clawdia on each of obstacle-1 and kelp-2. GET /api/leaderboard/obstacle-1 and /api/leaderboard/kelp-2 each return the 3 champion crabs with verified badges and new scores. POST /api/auth/register with revoked <redacted> -> 403 invite_required 'That access code is invalid, expired or used up.'. POST /api/auth/login with the old admin password -> 401 'Invalid email or password.' (one attempt only, per the brute-force caveat). Admin login with current <admin-password> ok; GET /api/admin/access confirms ARENA-<redacted> active (uses=0, seeded from env), <redacted> revoked (revoked_at set, note 'leaked in public repo'). Hosted course pages: created fresh attempts via POST /api/course-attempts for both courses and loaded /api/courses/obstacle-1/start?a=... and /api/courses/kelp-2/entry?a=... in a real Chromium: HUD (#timer, #decoy-count, #course-map) all render, trail map shows 7 posts for obstacle-1 and 8 posts for kelp-2, clicking a trap (#skip on start, the vendor-offer button on kelp entry) increments the decoy counter from 0 to 1 and shows the toast, and clearing the station (click #go / #enter) auto-navigates to the next station (start -> wall, entry -> current) without any manual step. Replay playback on /courses/obstacle-1 renders the champion replay viewer with step counter 'REPLAY · 3/7 stations', elapsed timer, and screenshot updates ('WALL CLEARED!' / 'DECOY DODGED!' overlays). Front-end pages tested while logged out (Home, Arena, Obstacle Course, Leaderboard x2, Hall, Tutorials, Pricing, Login w/ data-testid=beta-lock) and logged in as admin (Arena, Builder, Workflow Lab, Studio, My Keys, Profile, Export, Admin) all load cleanly; only expected 401s for /api/me when anonymous. node scripts/course-smoke.mjs from /app -> 30 passed, 0 failed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_access_gating.py",
+    "/app/scripts/course-smoke.mjs"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "course-smoke.mjs is a solid regression harness mirroring backend/courses.py rendering; recommend wiring it into CI as a pre-publish gate (yarn course:smoke).",
+    "The Admin page HealthStrip and codes list each independently fetch /api/health and /api/admin/access on mount with no polling; fine for an admin surface but a 'last updated' timestamp would avoid stale confusion after revokes.",
+    "/api/auth/register still returns 422 for a missing 'name' before validating the access code, so callers who POST only email+password+access_code get a schema error rather than the invite_required/revoked signal; consider making 'name' optional (default to email local-part) so the gating reason surfaces first.",
+    "Cloudflare 'Performing security verification' intermittently fires when the automated browser revisits authenticated pages rapidly; not a code issue, but front-end tests should pace > 2 s between admin navigations."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%", "course_smoke": "30/30"},
+  "test_credentials": "Supplied inline by the orchestrator; NOT written to any file or memory per request. /app/memory/test_credentials.md intentionally does not exist.",
+  "seed_data_creation": "None persisted. The only registration attempt used the revoked BETA code and was rejected (403), so no user rows were created. ARENA-<redacted> uses counter is still 0; no access_codes/access_emails/login_attempts need cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All six hero flows for this iteration are green: smoke script (30/30), /api/replays (6 champs), leaderboards (3 champs each), hosted course UI (HUD + decoy + auto-nav on both courses), revoked-code register (403), old-password login (401). Admin page data-testids used: nav-admin, beta-lock, admin-health, admin-browser-mode, admin-registration-mode, admin-users-card, codes-table-row-<code>. Hosted-course page data-ids used by the agent-facing contract: #timer, #decoy-count, #course-map, #toast, body[data-station], #course-config (JSON). Avoid >5 admin page loads within 10 s or Cloudflare will challenge the automated browser.",
+  "rca of the issue": "N/A — no issues found."
+}

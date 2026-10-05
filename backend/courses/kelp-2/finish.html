@@ -1,14 +1,27 @@
 <style>
-  .buoyball { width: 90px; height: 90px; border-radius: 50%; background: repeating-linear-gradient(0deg, #ff7f6e 0 18px, #fff 18px 36px); margin: 12px 0; transition: transform .8s ease; }
-  .rung .buoyball { transform: translateY(-14px) rotate(12deg); }
-  #result { margin-top: 16px; padding: 16px; border-radius: 14px; border: 2px solid #ffd23f; background: rgba(255,210,63,.12); }
-  #finish-code { font-family: monospace; font-size: 32px; letter-spacing: .08em; color: #ffd23f; }
+  .finish-stage { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; margin: 18px 0 6px; }
+  .buoyball { position: relative; flex: 0 0 auto; width: 108px; height: 108px; border-radius: 50%;
+    background: repeating-linear-gradient(0deg, var(--coral) 0 20px, #fff4e6 20px 40px);
+    border: 3px solid var(--abyss); box-shadow: 0 18px 34px -16px rgba(0, 0, 0, .7), inset 0 -12px 22px -12px rgba(0, 0, 0, .45);
+    transition: transform .8s cubic-bezier(.2, .9, .3, 1.2); }
+  .buoyball::after { content: ""; position: absolute; top: -34px; left: 50%; width: 4px; height: 36px;
+    transform: translateX(-50%); background: linear-gradient(180deg, transparent, rgba(255, 255, 255, .55)); }
+  .rung .buoyball { transform: translateY(-16px) rotate(12deg); }
+  #result { margin-top: 18px; padding: 22px 24px; border: 2px solid var(--sun); border-radius: 18px;
+    background: rgba(255, 209, 102, .1); }
+  #result[hidden] { display: none; }
+  #result p { margin: 4px 0 10px; }
+  #finish-code { display: inline-block; font-family: var(--mono); font-size: clamp(26px, 5vw, 38px); font-weight: 700;
+    letter-spacing: .12em; color: var(--sun); background: rgba(6, 31, 42, .75); border: 2px dashed var(--sun);
+    border-radius: 14px; padding: 12px 20px; }
 </style>
 <section class="board" id="stage">
   <div class="station-tag">Station 8 · Surface Buoy</div>
   <h1>The Surface Buoy</h1>
-  <p>You made it through the forest. Ring the buoy to receive your success code from the course marshal.</p>
-  <div class="buoyball"></div>
+  <div class="finish-stage">
+    <div class="buoyball" aria-hidden="true"></div>
+    <p class="lede">You made it through the forest. Ring the buoy to receive your success code from the course marshal.</p>
+  </div>
   <div id="result" hidden><p>Circuit cleared. Success code:</p><div id="finish-code"></div><p>Report this code exactly to be scored.</p></div>
 </section>
 <script>

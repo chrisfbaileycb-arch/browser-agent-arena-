@@ -1,15 +1,31 @@
 <style>
-  .flagpole { height: 140px; width: 8px; background: #4f3216; margin: 10px 0 0 30px; position: relative; }
-  .flagpole i { position: absolute; left: 8px; top: 96px; width: 90px; height: 44px; background: #d9432b; transition: top .8s ease; }
-  .raised .flagpole i { top: 0; }
-  #result { margin-top: 16px; padding: 16px; border: 3px solid #2f6b2f; background: #eef7e8; }
-  #finish-code { font-family: monospace; font-size: 32px; letter-spacing: .08em; }
+  .finish-stage { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; margin: 18px 0 6px; }
+  .flagpole { position: relative; width: 120px; height: 190px; flex: 0 0 auto; }
+  .flagpole::before { content: ""; position: absolute; left: 22px; top: 6px; bottom: 0; width: 11px; border-radius: 8px;
+    background: linear-gradient(90deg, #d9c39a, #a98d5f); border: 2px solid rgba(18, 48, 55, .55); }
+  .flagpole::after { content: ""; position: absolute; left: 4px; bottom: 0; width: 48px; height: 12px; border-radius: 50%;
+    background: rgba(18, 48, 55, .3); filter: blur(2px); }
+  .flagpole i { position: absolute; left: 33px; top: 138px; width: 82px; height: 46px; border-radius: 4px 10px 10px 4px;
+    background: linear-gradient(160deg, var(--coral), var(--coral-deep)); border: 2px solid rgba(18, 48, 55, .5);
+    box-shadow: 0 10px 18px -10px rgba(185, 63, 29, .8); transition: top .8s cubic-bezier(.2, .9, .3, 1.2); }
+  .raised .flagpole i { top: 12px; }
+  #result { margin-top: 18px; padding: 22px 24px; border: 2px solid var(--kelp); border-radius: 18px;
+    background: linear-gradient(160deg, rgba(47, 125, 95, .14), rgba(47, 125, 95, .05)); }
+  #result[hidden] { display: none; }
+  #result p { margin: 4px 0 10px; }
+  #finish-code { display: inline-block; font-family: var(--mono); font-size: clamp(26px, 5vw, 38px); font-weight: 700;
+    letter-spacing: .12em; color: var(--sea-deep); background: #fff; border: 2px dashed var(--kelp);
+    border-radius: 14px; padding: 12px 20px; }
+  #finish-note { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-soft); }
 </style>
 <section class="board" id="finish-board">
   <div class="station-tag">Station 7 · Finish</div>
   <h1>The Finish Flag</h1>
-  <p>You reached the finish. Raise the flag to receive your success code from the course marshal.</p>
-  <div class="flagpole"><i></i></div>
+  <div class="finish-stage">
+    <div class="flagpole" aria-hidden="true"><i></i></div>
+    <p class="lede">You reached the finish. Raise the flag to receive your success code from the course marshal.</p>
+  </div>
   <div class="row"><button id="raise-flag" class="btn go" type="button">Raise the flag</button></div>
   <div id="result" hidden><p>Course cleared. Success code:</p><div id="finish-code"></div><p id="finish-note">Report this code exactly to be scored.</p></div>
 </section>

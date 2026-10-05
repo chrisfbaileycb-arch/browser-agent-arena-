@@ -30,6 +30,8 @@ from weekly import router as weekly_router  # noqa: E402
 from coach import router as coach_router  # noqa: E402
 from hall import router as hall_router  # noqa: E402
 from access import registration_mode, router as access_router, seed_access  # noqa: E402
+from admin_users import router as admin_users_router  # noqa: E402
+from training import router as training_router  # noqa: E402
 from auth import bootstrap_admin, current_user, is_pro, optional_user, router as auth_router  # noqa: E402
 from billing import router as billing_router  # noqa: E402
 from course_api import router as course_router  # noqa: E402
@@ -42,7 +44,7 @@ from keys import PROVIDERS, KeyMissing, resolve_key, router as keys_router  # no
 from models import Run, RunCreate, SafetyRequest  # noqa: E402
 from platform_api import router as platform_router  # noqa: E402
 from quota import consume_execution  # noqa: E402
-from runner import DATA_DIR, MAX_STEPS, NEEDS_CLOUD, TIMEOUT_S, browser_mode, execute_run  # noqa: E402
+from runner import BROWSER_STATE, DATA_DIR, MAX_STEPS, NEEDS_CLOUD, TIMEOUT_S, browser_mode, ensure_browser, execute_run  # noqa: E402
 from safety import check_url  # noqa: E402
 from security import rate_limit  # noqa: E402
 from workflow import router as workflow_router  # noqa: E402
@@ -74,7 +76,8 @@ async def root():
 @api.get("/health")
 async def health():
     await db.command("ping")
-    return {"ok": True, "db": "ok", "browser_mode": await browser_mode(), "registration_mode": registration_mode()}
+    return {"ok": True, "db": "ok", "browser_mode": await browser_mode(), "browser_installing": BROWSER_STATE["installing"],
+            "registration_mode": registration_mode()}
 
 
 @api.get("/adapters")
@@ -223,7 +226,7 @@ async def get_screenshot(run_id: str, name: str, user: Optional[dict] = Depends(
     return FileResponse(path, media_type="image/jpeg")
 
 
-for r in (api, access_router, arena_router, public_router, auth_router, keys_router, endpoints_router, billing_router, course_router, platform_router, workflow_router, h2h_router, invites_router, relay_legs_router, weekly_router, coach_router, hall_router):
+for r in (api, access_router, admin_users_router, training_router, arena_router, public_router, auth_router, keys_router, endpoints_router, billing_router, course_router, platform_router, workflow_router, h2h_router, invites_router, relay_legs_router, weekly_router, coach_router, hall_router):
     app.include_router(r)
 @app.middleware("http")
 async def json_errors(request, call_next):
@@ -271,7 +274,10 @@ async def startup():
     await db.runs.update_many({"status": {"$in": ["queued", "running"]}},
                               {"$set": {"status": "failed", "end_reason": "interrupted", "error": "Server restarted during run"}})
     await db.tournaments.update_many({"status": "running"}, {"$set": {"status": "failed", "error": "Server restarted during the tournament"}})
-    logging.getLogger("server").warning("startup: browser_mode=%s registration_mode=%s", await browser_mode(), registration_mode())
+    task = asyncio.create_task(ensure_browser())
+    TASKS.add(task)
+    task.add_done_callback(TASKS.discard)
+    logging.getLogger("server").warning("startup: registration_mode=%s", registration_mode())
 
 
 @app.on_event("shutdown")

@@ -21,6 +21,7 @@ import Invite from "./pages/Invite";
 import Profile from "./pages/Profile";
 import Hall from "./pages/Hall";
 import Admin from "./pages/Admin";
+import Training from "./pages/Training";
 import "./styles.css";
 
 function Protected({ children }) {
@@ -32,7 +33,8 @@ function Protected({ children }) {
 
 function GuestOnly({ children }) {
   const { user } = useAuth();
-  return user ? <Navigate to="/arena" replace /> : children;
+  const location = useLocation();
+  return user ? <Navigate to={location.state?.from || "/arena"} replace /> : children;
 }
 
 function AppRoutes() {
@@ -46,6 +48,8 @@ function AppRoutes() {
           <Route path="/" element={<Home />} />
           <Route path="/arena" element={<Arena />} />
           <Route path="/course" element={<CoursePage />} />
+          <Route path="/courses/:id" element={<CoursePage />} />
+          <Route path="/arena/*" element={<Arena />} />
           <Route path="/builder" element={guard(<Builder />)} />
           <Route path="/workflow" element={guard(<WorkflowLab />)} />
           <Route path="/studio" element={guard(<Studio />)} />
@@ -61,6 +65,7 @@ function AppRoutes() {
           <Route path="/profile" element={guard(<Profile />)} />
           <Route path="/hall" element={<Hall />} />
           <Route path="/admin" element={guard(<Admin />)} />
+          <Route path="/training" element={guard(<Training />)} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AnimatePresence>

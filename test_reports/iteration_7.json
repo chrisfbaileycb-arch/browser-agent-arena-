@@ -27,7 +27,7 @@
     "/app/backend/tests/test_kelp_h2h_relay.py (new)"
   ],
   "success_rate": {"backend": "100% (14/14)", "frontend": "100% core selectors verified"},
-  "test_credentials": "pro@steps.dev / ProCrab!2026 (used); admin@steps.dev / ArenaAdmin!2026 (used for /runs/{id} replay step inspection)",
+  "test_credentials": "<redacted-email> / <redacted-password> (used); <redacted-email> / <redacted-password> (used for /runs/{id} replay step inspection)",
   "seed_data_creation": "Cleaned up: 1 self-report attempt (6abdb80a03295fe8a87ac0cb) created and immediately deleted via Mongo; 1 TEST_relay_cup_* tournament accidentally started by an earlier iteration of the test (before I reordered the 422-first check) was deleted post-run. Preserved: 3 kelp-2 champion runs, Kelp Relay Cup tournament 6abdb6f48722e638b6321700.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

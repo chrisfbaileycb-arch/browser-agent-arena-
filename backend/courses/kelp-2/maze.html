@@ -1,3 +1,12 @@
+<style>
+  .maze-grid { display: grid; gap: 16px; margin-top: 6px; max-width: 620px; }
+  .maze-step { position: relative; padding: 16px 18px; border-radius: 16px; border: 1px solid var(--line);
+    background: rgba(6, 31, 42, .5); }
+  .maze-step::before { content: attr(data-step); position: absolute; top: -10px; left: 16px; font-family: var(--mono);
+    font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--glow);
+    background: var(--deep); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+  .maze-step select { width: 100%; }
+</style>
 <section class="board" id="stage">
   <div class="station-tag">Station 3 · Kelp Maze</div>
   <h1>The Kelp Maze</h1>
@@ -5,7 +14,7 @@
 <script>
 (function () {
   var P = Course.P, I = P.ids, E = Course.el, stage = Course.stage();
-  stage.appendChild(E("p", { text: "Marshal's directions: " + P.instruction + " Pick the direction first; the passages change with it." }));
+  stage.appendChild(E("p", { class: "lede", text: "Marshal's directions: " + P.instruction + " Pick the direction first; the passages change with it." }));
   var dir = E("select", { id: I.a, class: I.b, name: I.a }, [E("option", { value: "", text: "Choose a direction…" })].concat(P.dirs.map(function (d) { return E("option", { value: d, text: d }); })));
   var pass = E("select", { id: I.c, class: I.d, name: I.c, disabled: true }, [E("option", { value: "", text: "Choose a direction first" })]);
   var swim = E("button", { id: I.e, class: "btn go " + I.f, type: "button", text: "Swim this way", disabled: true, on: function () { Course.clear(dir.value + "|" + pass.value); } });
@@ -16,7 +25,11 @@
     pass.disabled = !dir.value; swim.disabled = true;
   });
   pass.addEventListener("change", function () { swim.disabled = !pass.value; });
-  stage.appendChild(E("div", { class: "row" }, [E("label", { class: "f" }, [E("span", { text: "Direction" }), dir]), E("label", { class: "f" }, [E("span", { text: "Passage" }), pass])]));
+  var grid = E("div", { class: "maze-grid" }, [
+    E("div", { class: "maze-step", "data-step": "Step 1 · Direction" }, [E("label", { class: "f" }, [E("span", { text: "Direction" }), dir])]),
+    E("div", { class: "maze-step", "data-step": "Step 2 · Passage" }, [E("label", { class: "f" }, [E("span", { text: "Passage" }), pass])])
+  ]);
+  stage.appendChild(grid);
   var shortcut = E("button", { id: I.g, class: "btn flashy " + I.h, type: "button", text: "Swim straight through the kelp", on: function () { Course.decoy("Straight through the kelp is a dead end."); } });
   stage.appendChild(E("div", { class: "row" }, Math.random() < 0.5 ? [swim, shortcut] : [shortcut, swim]));
 })();

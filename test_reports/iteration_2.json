@@ -24,8 +24,8 @@
     "/app/backend/tests/test_arena_backend.py"
   ],
   "success_rate": {"backend": "100% (46/46)", "frontend": "100% of tested flows"},
-  "test_credentials": "admin@steps.dev / ArenaAdmin!2026; pro@steps.dev / ProCrab!2026; free@steps.dev / FreeCrab!2026",
-  "seed_data_creation": "Test suite created a few TEST_-prefixed users/crabs/challenges plus one transient agent_endpoints doc for pro@steps.dev (cleaned up in tests). The pro user briefly saved a fake anthropic key and it was DELETEd in the finally block.",
+  "test_credentials": "<redacted-email> / <redacted-password>; <redacted-email> / <redacted-password>; <redacted-email> / <redacted-password>",
+  "seed_data_creation": "Test suite created a few TEST_-prefixed users/crabs/challenges plus one transient agent_endpoints doc for <redacted-email> (cleaned up in tests). The pro user briefly saved a fake anthropic key and it was DELETEd in the finally block.",
   "retest_needed": false,
   "should_main_agent_self_test": true,
   "context_for_next_testing_agent": "Run: `cd /app/backend && pytest tests/test_arena_backend.py -v`. Live champion CU runs cannot succeed here (no real Anthropic/OpenAI/Gemini key with computer-use access); the fake-key test asserts the run finishes with status=failed and error mentions 'Anthropic ... 401'. The own_endpoint test uses https://httpbin.org/post which will echo back JSON with no 'answer' -> agent_gave_up. Both require ~40-90s each so keep suite runtime in mind. Login endpoint is still IP-rate-limited to 10/60s.",

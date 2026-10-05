@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -67,6 +68,30 @@ async def browser_mode(max_age_s: float = 300) -> str:
             mode = "unavailable"
         _probe.update(mode=mode, at=time.monotonic())
         return mode
+
+
+BROWSER_STATE = {"installing": False}
+
+
+async def ensure_browser() -> str:
+    """Idempotent: if local Chromium can't launch (e.g. binaries wiped on restart), install it in the background."""
+    mode = await browser_mode(max_age_s=0)
+    if mode != "unavailable":
+        logger.warning("browser_mode=%s", mode)
+        return mode
+    BROWSER_STATE["installing"] = True
+    logger.warning("local Chromium missing; installing Playwright Chromium into %s", os.environ["PLAYWRIGHT_BROWSERS_PATH"])
+    try:
+        proc = await asyncio.create_subprocess_exec(sys.executable, "-m", "playwright", "install", "chromium",
+                                                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE)
+        _, err = await proc.communicate()
+        if proc.returncode:
+            logger.error("playwright install failed: %s", err.decode()[-400:])
+    finally:
+        BROWSER_STATE["installing"] = False
+    mode = await browser_mode(max_age_s=0)
+    logger.warning("browser_mode=%s after install", mode)
+    return mode
 
 
 def now_iso() -> str:

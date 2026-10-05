@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { Activity, KeyRound, Mail, ShieldCheck } from "lucide-react";
+import { Activity, KeyRound, Mail, ShieldCheck, Trash2, Users } from "lucide-react";
 import { api, del, post } from "../api";
 import { useAuth } from "../auth";
 import { Badge, Btn, Card, Field, Head, Notice, Page } from "../components/ui";
@@ -17,7 +17,7 @@ function HealthStrip() {
     <Card testId="admin-health" className="row wrap">
       <Activity size={16} />
       {h.error ? <span data-testid="admin-health-error">{h.error}</span> : <>
-        <Badge kind={h.browser_mode === "unavailable" ? "failed" : "succeeded"} testId="admin-browser-mode">browser: {h.browser_mode}</Badge>
+        <Badge kind={h.browser_mode === "unavailable" ? "failed" : "succeeded"} testId="admin-browser-mode">browser: {h.browser_mode}{h.browser_installing ? " (installing…)" : ""}</Badge>
         <Badge kind="sky" testId="admin-registration-mode">registration: {h.registration_mode}</Badge>
         <Badge kind="lagoon">db: {h.db}</Badge>
       </>}
@@ -87,6 +87,39 @@ function AccessTable({ rows, label, idKey, onRevoke, testId }) {
   );
 }
 
+function UsersCard({ me }) {
+  const [users, setUsers] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const [msg, setMsg] = useState({ kind: "info", text: "" });
+  const load = useCallback(() => api("/admin/users").then(setUsers).catch(e => setMsg({ kind: "error", text: e.message })), []);
+  useEffect(() => { load(); }, [load]);
+  const remove = async u => {
+    try { const r = await del(`/admin/users/${u.id}`); setMsg({ kind: "info", text: `Deleted ${r.deleted} (${r.removed.runs} runs, ${r.removed.crabs} crabs, ${r.removed.attempts} attempts).` }); }
+    catch (e) { setMsg({ kind: "error", text: e.message }); }
+    setConfirm(null); load();
+  };
+  return (
+    <Card testId="admin-users-card">
+      <h3><Users size={16} /> Users</h3>
+      <Notice kind={msg.kind} testId="admin-users-msg">{msg.text}</Notice>
+      <div className="access-table" data-testid="users-table">
+        {(users || []).map(u => (
+          <div className="access-row" key={u.id} data-testid={`user-row-${u.email}`}>
+            <b className="mono">{u.email}</b>
+            <Badge kind={u.role === "admin" ? "sun" : "sky"}>{u.role}</Badge>
+            <span className="small muted">{u.plan} · {u.runs} runs · joined {fmt(u.created_at)}{u.joined_via ? ` via ${u.joined_via}` : ""}</span>
+            <span className="grow" />
+            {u.id === me.id ? <span className="small muted">you</span> : confirm === u.id ? <>
+              <Btn kind="primary" onClick={() => remove(u)} testId={`user-delete-confirm-${u.email}`}>Delete everything</Btn>
+              <Btn kind="ghost" onClick={() => setConfirm(null)} testId={`user-delete-cancel-${u.email}`}>Cancel</Btn>
+            </> : <Btn kind="ghost" onClick={() => setConfirm(u.id)} testId={`user-delete-${u.email}`}><Trash2 size={14} /> Delete</Btn>}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 export default function Admin() {
   const { user } = useAuth();
   const [data, setData] = useState(null);
@@ -110,6 +143,7 @@ export default function Admin() {
         <EmailForm onDone={load} />
         {data && <AccessTable rows={data.emails} label="emails" idKey="email" onRevoke={revoke("emails")} testId="emails-table" />}
       </Card>
+      {user?.role === "admin" && <UsersCard me={user} />}
     </Page>
   );
 }

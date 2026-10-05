@@ -31,7 +31,7 @@
     "/app/backend/tests/test_arena_backend.py"
   ],
   "success_rate": {"backend": "100% (35/35)", "frontend": "100% of tested flows"},
-  "test_credentials": "admin@steps.dev / ArenaAdmin!2026 (pro admin); pro@steps.dev / ProCrab!2026 (pro); free@steps.dev / FreeCrab!2026 (free). Newly registered users get NO platform fallback.",
+  "test_credentials": "<redacted-email> / <redacted-password> (pro admin); <redacted-email> / <redacted-password> (pro); <redacted-email> / <redacted-password> (free). Newly registered users get NO platform fallback.",
   "seed_data_creation": "Some TEST_-prefixed users, crabs and challenges were created during tests. TEST_ prefix marks them for future cleanup. Also a Stripe test checkout session was initiated (payment not completed).",
   "retest_needed": false,
   "should_main_agent_self_test": true,

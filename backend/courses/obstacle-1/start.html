@@ -1,7 +1,25 @@
+<style>
+  .hero-line { display: flex; flex-wrap: wrap; gap: 22px; align-items: center; margin: 20px 0 6px; }
+  .course-glyph { flex: 0 0 auto; width: 128px; height: 128px; border-radius: 26px; position: relative;
+    background: linear-gradient(150deg, var(--sea), var(--lagoon)); border: 2px solid var(--ink);
+    box-shadow: 0 5px 0 var(--ink), var(--shadow); overflow: hidden; }
+  .course-glyph::before { content: ""; position: absolute; left: -12px; right: -12px; bottom: -18px; height: 62px;
+    background: radial-gradient(48px 26px at 24px 18px, rgba(255, 255, 255, .55) 68%, transparent 70%) 0 0 / 96px 52px repeat-x,
+      linear-gradient(transparent 30%, rgba(255, 255, 255, .22) 32% 100%); }
+  .course-glyph::after { content: "⚑"; position: absolute; top: 16px; right: 22px; font-size: 44px;
+    color: var(--sun-soft); text-shadow: 0 6px 14px rgba(10, 55, 66, .5); }
+  .course-glyph i { position: absolute; left: 18px; top: 26px; width: 34px; height: 34px; border-radius: 50%;
+    background: var(--sun); box-shadow: 0 0 26px 8px rgba(242, 160, 61, .55); }
+</style>
 <section class="board">
   <div class="station-tag">Station 1 · Start Line</div>
   <h1>Start Line</h1>
-  <p>Welcome to the Tidepool Gauntlet. Seven stations stand between you and the finish flag: the start line, the wall, the decoy doors, the rope climb, the balance beam, the tunnel and the finish. Each station opens the next one.</p>
+  <div class="hero-line">
+    <div class="course-glyph" aria-hidden="true"><i></i></div>
+    <p class="lede">Welcome to the Tidepool Gauntlet. Seven stations stand between you and the finish flag:
+      the start line, the wall, the decoy doors, the rope climb, the balance beam, the tunnel and the finish.
+      Each station opens the next one.</p>
+  </div>
   <ul class="rules">
     <li>Read every sign. The most obvious button is often a trap.</li>
     <li>Stations must be cleared in order. There are no shortcuts.</li>

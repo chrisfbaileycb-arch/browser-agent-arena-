@@ -7,12 +7,12 @@ from datetime import datetime, timedelta, timezone
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://agent-battle-12.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
 API = f"{BASE_URL}/api"
 
-ADMIN_EMAIL = "beta-admin@stepsofexecution.app"
-ADMIN_PASSWORD = "h-wtPpgkdFTtyH_GA94"
-SEEDED_CODE = "BETA-9EBFA2"
+ADMIN_EMAIL = os.environ["TEST_ADMIN_EMAIL"]
+ADMIN_PASSWORD = os.environ["TEST_ADMIN_PASSWORD"]
+SEEDED_CODE = os.environ["TEST_ACCESS_CODE"]
 
 CREATED_USERS = []  # emails to clean up
 CREATED_CODES = []  # codes to clean up

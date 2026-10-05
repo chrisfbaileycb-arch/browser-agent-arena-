@@ -27,7 +27,7 @@
     "/app/backend/tests/test_weekly_rematch_coach.py (new)"
   ],
   "success_rate": {"backend": "100% (19/19 new + weekly_check OK)", "frontend": "100% selectors + flows verified"},
-  "test_credentials": "admin@steps.dev / ArenaAdmin!2026, pro@steps.dev / ProCrab!2026, free@steps.dev / FreeCrab!2026",
+  "test_credentials": "<redacted-email> / <redacted-password>, <redacted-email> / <redacted-password>, <redacted-email> / <redacted-password>",
   "seed_data_creation": "Temporary synthetic data created and deleted: 1 weekly_badges doc + 1 weekly_awards marker (week=current-1, course=obstacle-1, user=pro) for Home/Leaderboard/Profile rendering tests; 1 pro->free kelp-2 invite + free's accept attempt + free's child rematch invite for rematch UI flow. All removed; featured override reset to null. Pro's squad assignments were NOT modified (not_enough status so no apply swap tested). Preserved: all champion crabs, Kelp Relay Cup tournament, kelp-2 champion runs.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

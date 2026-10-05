@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { ExternalLink } from "lucide-react";
 import { api, BACKEND } from "../api";
 import { Card, Head, Page } from "../components/ui";
 import Broadcast from "../components/Broadcast";
-import { CoursePicker } from "../components/courses";
+import { COURSE_IDS, CoursePicker } from "../components/courses";
 
 const TINTS = ["coral", "sun", "lagoon", "sky", "grape", "coral", "sun", "lagoon"];
 
 export default function CoursePage() {
+  const params = useParams();
+  const navigate = useNavigate();
   const [courses, setCourses] = useState([]);
-  const [id, setId] = useState("obstacle-1");
+  const id = COURSE_IDS.includes(params.id) ? params.id : "obstacle-1";
+  const setId = next => navigate(`/courses/${next}`);
   const [replays, setReplays] = useState([]);
   const course = courses.find(c => c.id === id);
   useEffect(() => { api("/courses").then(setCourses).catch(() => {}); }, []);

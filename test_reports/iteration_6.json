@@ -10,7 +10,7 @@
   ],
   "updated_files": ["/app/backend/tests/test_self_report.py"],
   "success_rate": {"backend": "100% (16/16)", "frontend": "100% core flows"},
-  "test_credentials": "free@steps.dev / FreeCrab!2026, pro@steps.dev / ProCrab!2026 (login JSON returns token used as Bearer)",
+  "test_credentials": "<redacted-email> / <redacted-password>, <redacted-email> / <redacted-password> (login JSON returns token used as Bearer)",
   "seed_data_creation": "Created and then cleaned up ~5 self-report attempts for free/pro users (course_attempts with agent_kind != null). One leaderboard row (Comet 99 pts) was removed post-test.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

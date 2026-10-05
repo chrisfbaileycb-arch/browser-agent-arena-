@@ -31,7 +31,7 @@
     "/app/backend/tests/test_hall_streaks_history.py (new)"
   ],
   "success_rate": {"backend": "100% (21 passed + 1 skipped of 22 new; 19/19 regression)", "frontend": "100% selectors + flows verified for Hall; cow-hall-link + nav link confirmed"},
-  "test_credentials": "admin@steps.dev / ArenaAdmin!2026, pro@steps.dev / ProCrab!2026, free@steps.dev / FreeCrab!2026 (from /app/memory/test_credentials.md)",
+  "test_credentials": "<redacted-email> / <redacted-password>, <redacted-email> / <redacted-password>, <redacted-email> / <redacted-password> (from /app/memory/test_credentials.md)",
   "seed_data_creation": "Temporary synthetic data: 3 weekly_badges (verified pro kelp-2 wk 2800, self_reported admin obstacle-1 wk 2799, revoked verified wk 2798) + 3 weekly_awards markers (temp:true) + any invites created during streak tests. All removed in fixture teardown and verified: weekly_badges=0, awards.temp=0, recent invites=0, featured override reset to null. Pro's squad assignments NOT modified (apply swap was blocked by 409 as expected since status=not_enough).",
   "retest_needed": false,
   "main_agent_can_self_test": true,

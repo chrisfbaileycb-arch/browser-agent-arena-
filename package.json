@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "pretest": "node scripts/generate-project-manifest.mjs",
     "test": "vitest run",
+    "course:smoke": "node scripts/course-smoke.mjs",
     "browser:install": "playwright install chromium --only-shell",
     "server": "node --env-file-if-exists=.env --import tsx server/vesselServer.ts"
   },

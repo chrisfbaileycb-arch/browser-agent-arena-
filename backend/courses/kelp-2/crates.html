@@ -1,13 +1,25 @@
 <style>
-  .dock { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
-  .pile, .stack { min-height: 250px; border-radius: 14px; padding: 10px; background: rgba(2,26,36,.6); border: 2px dashed #7cf5e4; }
-  .stack { display: flex; flex-direction: column-reverse; gap: 6px; border-color: #ffd23f; }
-  .stack.over { background: rgba(255,210,63,.15); }
-  .crate { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 8px; border-radius: 8px;
-    background: #8a5a2c; color: #fff3d6; border: 2px solid #4f3216; cursor: grab; font-weight: bold; }
-  .crate .btn { padding: 4px 10px; font-size: 13px; border-color: #fff3d6; color: #fff3d6; }
-  .stack .crate { margin: 0; cursor: default; }
-  h3 { margin: 0 0 8px; font-size: 15px; }
+  .dock { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 14px; }
+  .pile, .stack { min-height: 260px; border-radius: 16px; padding: 14px; border: 2px dashed rgba(88, 224, 200, .35);
+    background: rgba(6, 31, 42, .5); transition: background-color .15s ease, border-color .15s ease; }
+  .stack { display: flex; flex-direction: column-reverse; gap: 8px; border-color: rgba(255, 209, 102, .55);
+    background: rgba(255, 209, 102, .07); }
+  .stack.over { background: rgba(255, 209, 102, .18); border-color: var(--sun); }
+  .crate { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 14px;
+    margin-bottom: 10px; border-radius: 12px; cursor: grab;
+    background: linear-gradient(165deg, #8a5a2c, #6d4420); color: #fff3e2;
+    border: 2px solid rgba(6, 31, 42, .65); box-shadow: 0 5px 0 rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .18);
+    transition: transform .12s ease, box-shadow .12s ease; }
+  .crate:hover { transform: translateY(-2px); box-shadow: 0 7px 0 rgba(0, 0, 0, .35); }
+  .crate span { font-weight: 700; }
+  .crate span::before { content: "▣"; margin-right: 9px; color: var(--sun); }
+  .crate .btn { padding: 5px 12px; font-size: 12.5px; border-color: #fff3e2; color: #fff3e2;
+    background: rgba(255, 255, 255, .08); box-shadow: 0 3px 0 rgba(0, 0, 0, .35); }
+  .crate .btn:hover { background: rgba(255, 255, 255, .16); }
+  .stack .crate { margin: 0; cursor: default; background: linear-gradient(165deg, #2fae7f, #1c7a58); }
+  .stack .crate:hover { transform: none; }
+  .dock h3 { margin: 0 0 10px; font-family: var(--mono); font-size: 11px; letter-spacing: .22em;
+    text-transform: uppercase; color: var(--ink-soft); font-weight: 600; }
 </style>
 <section class="board" id="stage">
   <div class="station-tag">Station 4 · Crate Stack</div>
@@ -16,7 +28,7 @@
 <script>
 (function () {
   var P = Course.P, I = P.ids, E = Course.el, stage = Course.stage(), placed = [];
-  stage.appendChild(E("p", { text: P.rule + " Drag each crate onto the stack, or use its \"Place on stack\" button. Then seal the stack." }));
+  stage.appendChild(E("p", { class: "lede", text: P.rule + " Drag each crate onto the stack, or use its \"Place on stack\" button. Then seal the stack." }));
   var pile = E("div", { class: "pile " + I.a, id: I.b }, [E("h3", { text: "Crates on the sea floor" })]);
   var stack = E("div", { class: "stack " + I.c, id: I.d, "aria-label": "Stack (bottom first)" });
   var seal = E("button", { id: I.e, class: "btn go " + I.f, type: "button", text: "Seal the stack", disabled: true, on: function () {

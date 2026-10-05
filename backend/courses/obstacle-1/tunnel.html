@@ -1,19 +1,35 @@
 <style>
-  #tunnel { overflow-x: auto; overflow-y: hidden; border: 4px solid #1f1a12; border-radius: 90px; background: #2b2b2b; }
-  .tube { position: relative; width: 3200px; height: 190px;
-    background: radial-gradient(circle at 3050px 95px, #ffd36b 0 40px, rgba(255,211,107,.25) 90px, transparent 160px), repeating-linear-gradient(90deg, #3a3a3a 0 60px, #333 60px 120px); }
-  .tube .mark { position: absolute; top: 80px; color: #bbb; font-family: monospace; }
-  .tube button { position: absolute; top: 70px; padding: 10px 16px; font-size: 15px; border-radius: 4px; border: 2px solid #111; }
-  .side { background: #9a9a9a; }
-  #lantern { background: #ffd36b; font-weight: bold; }
+  #tunnel { overflow-x: auto; overflow-y: hidden; border: 2px solid var(--ink); border-radius: 999px;
+    background: linear-gradient(180deg, #24333a, #142127); box-shadow: inset 0 12px 30px -12px rgba(0, 0, 0, .8); }
+  .tube { position: relative; width: 3200px; height: 210px;
+    background:
+      radial-gradient(circle at 3050px 105px, rgba(242, 160, 61, .95) 0 46px, rgba(242, 160, 61, .28) 100px, transparent 170px),
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, .05) 0 60px, transparent 60px 120px),
+      linear-gradient(180deg, #2c3d45, #1b2a31); }
+  .tube .mark { position: absolute; top: 92px; color: #9fb6bd; font-family: var(--mono); font-size: 12px;
+    letter-spacing: .16em; text-transform: uppercase; }
+  .tube .mark::before { content: "→"; margin-right: 10px; color: var(--sun); }
+  .tube button { position: absolute; top: 78px; padding: 12px 18px; font-size: 15px; font-weight: 700;
+    border-radius: 13px; border: 2px solid var(--ink); transition: transform .12s ease, box-shadow .12s ease; }
+  .tube button:hover { transform: translateY(-2px); }
+  .tube button:active { transform: translateY(2px); }
+  .side { background: #7d939b; color: var(--ink); box-shadow: 0 5px 0 rgba(0, 0, 0, .45); }
+  #lantern { background: linear-gradient(180deg, #ffd98c, var(--sun)); color: var(--ink); box-shadow: 0 5px 0 #a2661c, 0 0 34px rgba(242, 160, 61, .5); }
+  .crawl-note { display: flex; align-items: center; gap: 10px; margin: 16px 0 10px; font-family: var(--mono);
+    font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-soft); }
+  .crawl-note::before { content: "→"; width: 26px; height: 26px; border-radius: 50%; background: var(--sea);
+    color: var(--sun-soft); display: grid; place-items: center; animation: slide-x 1.6s ease-in-out infinite; }
+  @keyframes slide-x { 50% { transform: translateX(5px); } }
 </style>
 <section class="board">
   <div class="station-tag">Station 6 · The Tunnel</div>
   <h1>The Tunnel</h1>
-  <p>Crawl through the tunnel to the lantern at the far right end. The tunnel scrolls sideways. Side passages and hatches along the way are dead ends.</p>
-  <div id="tunnel" aria-label="The tunnel">
+  <p class="lede">Crawl through the tunnel to the lantern at the far right end. The tunnel scrolls sideways.
+    Side passages and hatches along the way are dead ends.</p>
+  <div class="crawl-note" aria-hidden="true"></div>
+  <div id="tunnel" aria-label="The tunnel" tabindex="0">
     <div class="tube">
-      <span class="mark" style="left:40px">Entrance · crawl right &#8594;</span>
+      <span class="mark" style="left:40px">Entrance · crawl right</span>
       <button class="side" type="button" style="left:760px">Side passage (up)</button>
       <button class="side" type="button" style="left:1560px">Brighter side passage</button>
       <button class="side" type="button" style="left:2320px">Shortcut hatch</button>

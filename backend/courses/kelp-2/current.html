@@ -1,9 +1,17 @@
 <style>
-  .stream { height: 330px; overflow-y: auto; border: 2px dashed #7cf5e4; border-radius: 14px; padding: 10px; background: rgba(2,26,36,.6); margin-top: 12px; }
-  .buoy { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; margin-bottom: 8px; border-radius: 12px; background: #0f5560; }
-  .buoy span { font-family: monospace; font-size: 16px; }
-  .buoy .btn { padding: 6px 14px; }
-  .loading { text-align: center; font-size: 13px; opacity: .7; padding: 8px; }
+  .stream { height: 330px; overflow-y: auto; border: 2px solid var(--line); border-radius: 16px; padding: 12px;
+    background: rgba(6, 31, 42, .55); margin-top: 12px; box-shadow: inset 0 12px 28px -16px rgba(0, 0, 0, .7); }
+  .buoy { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px;
+    margin-bottom: 8px; border-radius: 13px; background: rgba(14, 92, 110, .5); border: 1px solid var(--line);
+    transition: transform .12s ease, border-color .12s ease; }
+  .buoy:hover { transform: translateY(-2px); border-color: rgba(88, 224, 200, .5); }
+  .buoy span { font-family: var(--mono); font-size: 15px; letter-spacing: .08em; }
+  .buoy span::before { content: "◉"; color: var(--glow); margin-right: 9px; }
+  .buoy .btn { padding: 6px 14px; font-size: 14px; }
+  .loading { text-align: center; font-family: var(--mono); font-size: 11.5px; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--ink-soft); padding: 12px; }
+  .loading::after { content: "…"; animation: dots 1.2s steps(4) infinite; }
+  @keyframes dots { 50% { opacity: .3; } }
 </style>
 <section class="board" id="stage">
   <div class="station-tag">Station 2 · The Current</div>
@@ -12,10 +20,10 @@
 <script>
 (function () {
   var P = Course.P, I = P.ids, E = Course.el, stage = Course.stage();
-  stage.appendChild(E("p", { text: "Somewhere down this current floats the buoy tagged " + P.target + ". The current only brings more buoys when you scroll to its end. " + P.verb + " that buoy and no other." }));
+  stage.appendChild(E("p", { class: "lede", text: "Somewhere down this current floats the buoy tagged " + P.target + ". The current only brings more buoys when you scroll to its end. " + P.verb + " that buoy and no other." }));
   stage.appendChild(E("button", { id: I.c, class: "btn flashy " + I.d, type: "button", text: P.verb + " the nearest buoy", on: function () { Course.decoy("The nearest buoy is not yours."); } }));
-  var list = E("div", { class: "stream " + I.a, id: I.b, "aria-label": "Ocean current (scroll for more buoys)" });
-  var loader = E("div", { class: "loading", text: "Scroll down for more buoys…" });
+  var list = E("div", { class: "stream " + I.a, id: I.b, "aria-label": "Ocean current (scroll for more buoys)", tabindex: "0" });
+  var loader = E("div", { class: "loading", text: "Scroll down for more buoys" });
   stage.appendChild(list);
   var shown = 0, loading = false;
   var more = function () {

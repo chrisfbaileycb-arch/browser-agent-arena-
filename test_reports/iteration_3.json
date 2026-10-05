@@ -39,8 +39,8 @@
     "backend": "98.5% (67/68 — 1 infra CORS edge)",
     "frontend": "100% of tested flows (home, guest arena, Google callback simulation, signed-in /login redirect, course URL, broadcast on /arena + /course, squad, tournament bracket)"
   },
-  "test_credentials": "admin@steps.dev / ArenaAdmin!2026; pro@steps.dev / ProCrab!2026; free@steps.dev / FreeCrab!2026",
-  "seed_data_creation": "Test suite saved/removed a squad for pro@steps.dev (persistence verified). No new tournaments created (spec explicitly warns real LLM cost).",
+  "test_credentials": "<redacted-email> / <redacted-password>; <redacted-email> / <redacted-password>; <redacted-email> / <redacted-password>",
+  "seed_data_creation": "Test suite saved/removed a squad for <redacted-email> (persistence verified). No new tournaments created (spec explicitly warns real LLM cost).",
   "retest_needed": false,
   "main_agent_can_self_test": true,
   "context_for_next_testing_agent": "Run backend tests: `cd /app/backend && pytest tests/test_arena_backend.py tests/test_arena_new_features.py -v`. Login endpoint IP-rate-limited to 10/60s — space runs or add sleep(65) between full-suite passes. For Playwright, simulate Google OAuth by page.route()'ing **/api/auth/google/session and fulfilling with the response of a real POST /api/auth/login for any seeded account, then goto /arena#session_id=fake. Avoid creating new tournaments — each match runs a real ~90s LLM call. The 1 pytest CORS failure is not backend code; it's the Cloudflare edge substituting the ACAO on OPTIONS.",

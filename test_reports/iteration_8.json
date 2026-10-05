@@ -22,7 +22,7 @@
     "/app/backend/tests/test_invites_featured_relay.py (new)"
   ],
   "success_rate": {"backend": "100% (21/21)", "frontend": "100% core selectors + flows verified"},
-  "test_credentials": "admin@steps.dev / ArenaAdmin!2026, pro@steps.dev / ProCrab!2026, free@steps.dev / FreeCrab!2026 — all used",
+  "test_credentials": "<redacted-email> / <redacted-password>, <redacted-email> / <redacted-password>, <redacted-email> / <redacted-password> — all used",
   "seed_data_creation": "Created and cleaned ~5 invites + 1 invite-id attempt during tests (deleted via Mongo in conftest + manual sweep). Featured override reset to automatic (null). Public share enabled for Kelp Relay Cup 6abdb6f48722e638b6321700 (slug persists — tests use it; leave enabled since the prior iteration also used it). Preserved: all champion crabs, kelp-2 champion runs, Kelp Relay Cup tournament.",
   "retest_needed": false,
   "main_agent_can_self_test": true,

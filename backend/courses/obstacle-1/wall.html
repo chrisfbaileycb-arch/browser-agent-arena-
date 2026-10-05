@@ -1,17 +1,38 @@
 <style>
-  #wall { height: 260px; overflow-y: auto; border: 4px solid #4f3216; border-radius: 3px; background: #c9a27e; }
-  .bricks { height: 1400px; background-image: linear-gradient(#8a5a3b 3px, transparent 3px), linear-gradient(90deg, #8a5a3b 3px, transparent 3px);
-    background-size: 84px 38px; display: flex; align-items: flex-start; justify-content: center; padding-top: 90px; }
-  .bricks span { background: rgba(255,255,255,.8); padding: 6px 10px; font-size: 13px; }
-  #hold-slot { padding: 16px; text-align: center; background: #e9d8c3; min-height: 72px; }
-  .hold { background: #2f6b2f; color: #fff; border: 2px solid #1f1a12; padding: 12px 22px; font-size: 16px; border-radius: 30px; }
+  #wall { position: relative; height: 300px; overflow-y: auto; border: 2px solid var(--ink); border-radius: 18px;
+    background: linear-gradient(180deg, #d9b98c, #c49a6b); box-shadow: inset 0 14px 30px -18px rgba(18, 48, 55, .55); }
+  .bricks { height: 1400px; position: relative;
+    background-image:
+      linear-gradient(rgba(18, 48, 55, .18) 2px, transparent 2px),
+      linear-gradient(90deg, rgba(18, 48, 55, .14) 2px, transparent 2px),
+      linear-gradient(115deg, rgba(255, 255, 255, .16), transparent 55%);
+    background-size: 88px 40px, 88px 40px, 100% 100%;
+    display: flex; align-items: flex-start; justify-content: center; padding-top: 96px; }
+  .bricks span { background: rgba(255, 251, 242, .92); border: 2px solid var(--ink); border-radius: 12px;
+    padding: 8px 14px; font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+    box-shadow: 0 4px 0 rgba(18, 48, 55, .35); }
+  #hold-slot { padding: 20px; text-align: center; background: rgba(10, 55, 66, .18);
+    border-top: 2px dashed rgba(18, 48, 55, .4); min-height: 84px; }
+  .hold { background: var(--kelp); color: #fff; border: 2px solid var(--ink); padding: 14px 26px; font-size: 17px;
+    font-weight: 700; border-radius: 999px; box-shadow: 0 5px 0 var(--ink); transition: transform .12s ease, box-shadow .12s ease; }
+  .hold:hover { transform: translateY(-2px); box-shadow: 0 7px 0 var(--ink); }
+  .hold:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+  .scroll-note { display: flex; align-items: center; gap: 10px; margin: 16px 0 10px; font-family: var(--mono);
+    font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-soft); }
+  .scroll-note::before { content: "↓"; width: 26px; height: 26px; border-radius: 50%; background: var(--sun);
+    color: var(--ink); display: grid; place-items: center; font-size: 14px; animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(4px); } }
 </style>
 <section class="board">
   <div class="station-tag">Station 2 · The Wall</div>
   <h1>The Wall</h1>
-  <p>A tall wall blocks the path. The climbing hold is at the very bottom of the wall. Scroll down inside the wall to reveal the hold, then grab it.</p>
-  <button class="btn flashy" id="ladder" type="button">Use the rental ladder (saves time!)</button>
-  <div id="wall" aria-label="The wall" style="margin-top:14px">
+  <p class="lede">A tall wall blocks the path. The climbing hold is at the very bottom of the wall.
+    Scroll down inside the wall to reveal the hold, then grab it.</p>
+  <div class="row">
+    <button class="btn flashy" id="ladder" type="button">Use the rental ladder (saves time!)</button>
+  </div>
+  <div class="scroll-note" aria-hidden="true"></div>
+  <div id="wall" aria-label="The wall" tabindex="0">
     <div class="bricks"><span>Keep scrolling down. The hold is at the bottom.</span></div>
     <div id="hold-slot"></div>
   </div>

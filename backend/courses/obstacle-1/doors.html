@@ -1,13 +1,31 @@
 <style>
-  .plaque { border: 3px double #4f3216; background: #f3e6c8; padding: 12px 16px; margin: 10px 0 16px; font-size: 17px; }
-  .decoy-cta { display: block; width: 100%; background: #1f9d55; color: #fff; font-size: 22px; padding: 18px; border: 0; border-radius: 8px; margin-bottom: 18px; box-shadow: 0 5px 0 #136b39; }
-  .doors { display: flex; gap: 14px; }
-  .door { flex: 1; background: #7b4a2a; color: #fff5e6; border: 4px solid #3d2414; border-radius: 48px 48px 4px 4px; height: 130px; font-size: 16px; }
+  .plaque { position: relative; border: 2px solid var(--ink); border-radius: 16px; background: linear-gradient(160deg, #f7ecd6, #efe0c2);
+    padding: 18px 22px 18px 58px; margin: 16px 0 22px; font-size: 17.5px; box-shadow: 0 4px 0 rgba(18, 48, 55, .18); }
+  .plaque::before { content: "⚓"; position: absolute; left: 18px; top: 50%; transform: translateY(-50%); font-size: 24px; }
+  .decoy-cta { display: block; width: 100%; background: linear-gradient(180deg, #2bb26a, #1f9d55); color: #fff;
+    font-size: 21px; font-weight: 800; letter-spacing: .02em; padding: 20px; border: 2px solid var(--ink);
+    border-radius: 16px; margin-bottom: 22px; box-shadow: 0 6px 0 var(--ink);
+    transition: transform .12s ease, box-shadow .12s ease; }
+  .decoy-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 0 var(--ink); }
+  .decoy-cta:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+  .doors { display: flex; gap: 16px; }
+  .door { flex: 1; display: grid; align-content: end; gap: 2px; min-height: 172px; padding: 16px 12px 18px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .12), transparent 30%),
+      repeating-linear-gradient(90deg, rgba(18, 48, 55, .12) 0 3px, transparent 3px 26px),
+      linear-gradient(180deg, #8a5a2c, #6d4420);
+    color: #fff3e2; border: 2px solid var(--ink); border-radius: 90px 90px 12px 12px; font-size: 16px; font-weight: 700;
+    box-shadow: 0 6px 0 rgba(18, 48, 55, .55), inset 0 -26px 40px -22px rgba(0, 0, 0, .55);
+    transition: transform .15s ease, box-shadow .15s ease; }
+  .door::after { content: ""; justify-self: end; width: 16px; height: 16px; margin-top: 10px; border-radius: 50%;
+    background: radial-gradient(circle at 32% 30%, #ffe6ae, var(--sun) 70%); border: 2px solid rgba(18, 48, 55, .6); }
+  .door:hover { transform: translateY(-3px); box-shadow: 0 9px 0 rgba(18, 48, 55, .55), inset 0 -26px 40px -22px rgba(0, 0, 0, .55); }
+  .door:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(18, 48, 55, .55); }
 </style>
 <section class="board">
   <div class="station-tag">Station 3 · Decoy Doors</div>
   <h1>The Decoy Doors</h1>
-  <div class="plaque">Plaque: “Only the door carved with the word <b id="pass"></b> is real. Every other exit is a trap.”</div>
+  <div class="plaque">Plaque: &ldquo;Only the door carved with the word <b id="pass"></b> is real. Every other exit is a trap.&rdquo;</div>
   <button class="decoy-cta" id="door-continue" type="button">Continue &#9654;</button>
   <div class="doors" id="doors"></div>
 </section>

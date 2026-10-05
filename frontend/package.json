@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "course:smoke": "node ../scripts/course-smoke.mjs"
   },
   "dependencies": {
     "@react-three/drei": "9.117.3",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "4.3.4",
+    "jsdom": "^30.1.2",
     "vite": "5.4.11"
   }
 }
